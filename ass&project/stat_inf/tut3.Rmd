@@ -1,0 +1,116 @@
+---
+title: "tut3"
+author: "Mike"
+date: "2024-03-04"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## 1
+A 2.6:
+an unbaised estimator $T(X)$ has expected value $g\prime(\theta)$
+CR lower bound is given by $\frac{g\prime(\theta)^2}{\mathcal{I}(\theta)}$
+where $\mathcal{I}(\theta)$ is fisher information of $\theta$ is given by $$\mathcal{I}(\theta)=E[(\frac{\partial}{\partial \theta}\log f(X;\theta))^2]=-E[\frac{\partial^{2}}{\partial\theta^{2}}\log f(X;\theta)]$$
+a. $g(\theta)=\theta$,for each individual independent Bernouilli trial we have 
+$$\mathcal{I}(\theta)=-E[\frac{\partial^{2}}{\partial\theta^{2}}\log f(X;\theta)]=-E[\frac{\partial^{2}}{\partial\theta^{2}}(X\log\theta+(1-X)\log (1-X))]=\frac{1}{\theta(1-\theta)}$$
+So for n trials, we have $\mathcal{I}(\theta)=\frac{n}{\theta(1-\theta)}$.
+Therefore, CR lowerbound is $\frac{\theta(1-\theta)}{n}$
+b.According to a,the only difference is $g(\theta)=\theta^2$ We can easily get CR lower bound is $\frac{4\theta^3(1-\theta)}{n}$
+A 2.8
+a. According to A 2.6 and the property of normal distribution,$\frac{(n-1)S^2}{\sigma^2}\sim\chi^2(n-1)$ which have expected value of $n-1$.Therefore,
+$$
+g(\sigma^2)=E(S^2)=\sigma^2
+$$
+while in one sample
+$$
+\mathcal{I}(\sigma^2)=-E[\frac{\partial}{\partial(\sigma^2)}(-\frac{1}{2\sigma^2}+\frac{(X-\mu)^2}{2\sigma^4})]=E[-\frac{1}{2\sigma^4}+\frac{(X-\mu)^2}{\sigma^6})]=\frac{1}{2\sigma^4}
+$$
+For n samples ,we have $\mathcal{I}(\sigma^2)=\frac{n}{2\sigma^4}$
+So CR lower bound is $\frac{2\sigma^4}{n}$.
+$$
+Var(S^2)=\frac{\sigma^4Var(\chi^2(n-1))}{(n-1)^2}=\frac{2\sigma^4}{n-1}
+$$
+The conclusion is obvious.
+b.
+$$
+MSE(\hat\theta)=E[(\hat\theta-\theta)^2]=Var(\hat\theta)+Bais(\hat\theta)
+$$
+Let $\hat{\sigma^2}=c\sum_{i=1}^n(X_i-\bar X)$
+$$
+MSE(\hat{\sigma^2})=Var(\hat{\sigma^2})+Bais(\hat{\sigma^2})=c^2(n-1)^2Var(S)+[c(n-1)-1]^2\sigma^4=\sigma^4[(n-1)(n+1)c^2-2(n-1)c+1]
+$$
+Therefore, we get min MSE when $c=\frac{1}{n+1}$.
+A 2.10
+$g(\theta)=\theta$,$\mathcal{I}(\theta)=\frac{n}{\sigma^2}$
+Therefore, CR bound is $\frac{\sigma^2}{n}$
+
+## 2.
+$$
+\int_0^1cos(2\pi x)dx=0
+$$
+```{r}
+#numeric method
+n=100
+x=seq(0+1/n,1,1/n)
+y=cos(x*2*pi)
+intcos2pix=sum(y)/n
+intcos2pix
+
+
+n=1000
+x=seq(0+1/n,1,1/n)
+y=cos(x*2*pi)
+intcos2pix=sum(y)/n
+intcos2pix
+
+```
+
+
+```{r}
+n=100
+x=runif(n)
+y=1-2*runif(n)
+cos2pix=cos(2*pi*x)
+sum(cos2pix)/n
+
+n=1000
+x=runif(n)
+y=1-2*runif(n)
+cos2pix=cos(2*pi*x)
+sum(cos2pix)/n
+```
+```{r}
+#numeric method
+n=100
+x=seq(0+1/n,1,1/n)
+y=cos(2*pi*(x)^2)
+intcos2pix2=sum(y)/n
+intcos2pix2
+
+n=1000
+x=seq(0+1/n,1,1/n)
+y=cos(2*pi*(x)^2)
+intcos2pix2=sum(y)/n
+intcos2pix2
+
+```
+
+```{r}
+n=100
+x=runif(n)
+y=1-2*runif(n)
+cos2pix2=cos(2*pi*x^2)
+sum(cos2pix2)/n
+
+n=1000
+x=runif(n)
+y=1-2*runif(n)
+cos2pix2=cos(2*pi*x^2)
+sum(cos2pix2)/n
+```
+
+
+

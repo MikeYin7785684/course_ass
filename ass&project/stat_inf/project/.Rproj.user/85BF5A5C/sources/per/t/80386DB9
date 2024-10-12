@@ -1,0 +1,27 @@
+{
+    "id": "80386DB9",
+    "path": "~/Desktop/course/STAT6027/testtut2.R",
+    "project_path": null,
+    "type": "r_source",
+    "hash": "389745895",
+    "contents": "",
+    "dirty": false,
+    "created": 1715085364088.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "211,20",
+        "scrollLine": "0",
+        "marks": "<:0,0\n>:0,0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1715994771,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1715994771,
+    "read_only": false,
+    "read_only_alternatives": []
+}

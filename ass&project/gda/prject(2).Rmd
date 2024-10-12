@@ -1,0 +1,704 @@
+---
+title: "Project of STAT6026"
+date: "2023-11-2"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+  html_notebook: default
+---
+
+# Part A(page 1-5)
+
+![source:https://archive.ics.uci.edu/dataset/45/heart+disease](hddataset)
+
+This graphic is from webpage of Heart Disease Datasets which is one of the most popular datasets in UC Irvine Machine Learning Repository. 
+The graphic displays the accuracy of various machine learning methods.The point in the middle shows the average performance of each ML methods while the 2 boundaries show the best and the worst performance.The graphic is breif , direct and easy for people to compare each methods.We can observe that Logistic Regression and XGBoost Classification are likely to outperform other methods, whereas Support Vector Classification is likely to have the worst performance.
+
+The advantages of the graphic are showing the average performance directly and showing random effects in testing machine learning. If the graphic could sort the methods from top to bottom by average accurancy, the comparison may be more direct.
+
+\newpage
+![source:https://www.nature.com/articles/nature.2015.18248](nature){width=70% height=70%}
+
+
+The image directly illustrates the ratio of successful replication results, strongly suggesting that many psychology studies should be questioned due to the high rate of unsuccessful reproductions.Furthermore, it visually show the similarity between original paper and reproducing results by color from light to dark(which always mean negative) which is also very direct and brief.We can see "not at all similar" accounts for 15 in 100 which may also imply a crisis in psychology study.
+However, although some work may be reproduced unsuccessfully ,the findings share some similarity.
+Besides,the we can clearly see the different color pattern between "Yes" and "No" which reflect the fact that "Yes" in replication means more similar and vice vesra.
+
+\newpage
+![sourse:http://www.r2d3.us/visual-intro-to-machine-learning-part-1/](tdml)
+
+
+The graphic show how tree decision method which is one of the classical machine learning method works. The 2 colored histogram on each nodes clearly shows how it split a data subset into 2 partition depending on point on x( different covariates ) axis. 
+
+The original graphic is dynamic which really help ML beginners learn the principle of tree decision quickly.
+
+\newpage
+![source:https://journals.sagepub.com/doi/pdf/10.1177/1536867X0900900302](sagepub){width=70% height=70%}
+
+This is also an interesting graphic which use chernoff face to show different clusters. We can also find companies in the same cluster share what in similarity quickly because people are sensitive to face features .
+
+Describing these features with raw data might be time-consuming. However, this graph can be genuinely useful for revealing the hidden structure of data, assessing the effectiveness of clustering, and providing a rapid and effective way to visualize high-dimensional data (beyond 2D).
+
+\newpage
+![source:https://www.portofmelbourne.com/wp-content/uploads/BISOE-Port-of-Melbourne-Container-Forecasts-and-Sensitivities-20221223.pdf](portofmelbourne)
+
+It shows the household consumption in different part and total in one graphic.Besides ,it also show the change and the rate of total and each cosumption change.The data on 2020 which showed an abnormal down because of the pandemic breaking out.
+
+The author wanted to show the increasing trend of the household consumption therefore he or she plot the forecast.It may be clear to see the total growth and retail growth but a little harder to get the growth of other part due to the graphic type. But since the retail accounts most ,this may be reasonable. And we may compare the growth or growth rate by slope.
+  
+  
+    
+      
+\newpage      
+# Part B (page 6-13)
+## Introduction
+This part focus on the analysis on insurance availability around 1978 in Chicago.The data has full description in GDA project description. The original variables include Zip,Race,Fire,Theft,Age,Volun, Invol and Income.
+
+Zip which represents different neighborhood is the identity of each neighborhood.Race,Fire,Theft,Age and Income may be our important covariates  especially Race and Age since the objectives of the study are to explore the extent to which racial composition and age of housing affect underwriting practices. 
+
+Volun represents the a rate of "accepted" requests to purchase insurance while Invol is likely to play the opposite role meaning rate of "rejected".Since these 2 variables are rate, to some degree,they can show the rate of acceptance and rejection regardless of different size of neighborhood . However,the ratio between $Invol$ and $Volun+Invol$ may be more reasonable to represent the extent of rejection.So here I produce a variable VIRatio which is $\frac{Invol}{Volun+Invol}$ as response variable of the first regression model. Besides ,insurance was probably not compulsory so we can see the $max(\frac{Volun}{100})$ is around $0.1$ while $max(\frac{Invol}{100})$ is around $0.01$ which may also suggest us to consider Volun as a response variable.In the second regression model I take Volun as response variable.
+
+Let's first have a general picture of the data.
+
+## General picture
+I download Chicago with zip code from Google to interpret the general view of data on location.The 8 graphics below respectively show Race,Fire,Theft, Age,Volun,Invol,Income and VIRatio on the map of Chicago .We may find that the VIRatio in the center part of the Chicago is more likely to be lower.Besides, it seems that the graphics of Race , Fire ,Invol and VIRatio share some pattern (deep red and light red seem to have similar areas) which suggests high positive correlation between variables .
+
+Finally , we also need to pay attention to the areas where $Invol$ and $VIRatio$ are zero.These areas are all in almost white color meaning very low in Race(almost 0) but show similar Fire,Theft and Age compared to areas around or near them.Meanwhile, these 0-Invol areas also show different house age which may suggests the relationship between "reject"  and house age is weak.
+These features may suggest the race discrimination may happen in making the desicison of "accept" or "reject".
+```{r include=FALSE}
+library(ggplot2)
+library(sf)
+library(dplyr)
+library(ggmap)
+library(GGally)
+load("classdata.RData")
+insure <- data.frame(insure)
+colnames(insure)[colnames(insure) == "Zip"] <- "zip"
+insure$zip <- as.character(insure$zip)
+chicago_zip_boundaries <- st_read("Boundaries_ZIP_Codes.geojson")
+#names(chicago_zip_boundaries)
+#insure
+```
+
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+invlogit<-function(x){
+  if(any(x==0)){
+    x=x+1e-10
+  }
+  return(log(x/(1-x)))
+}
+ilogit<-function(x){
+  return(exp(x)/(1+exp(x)))
+}
+insure$VIRatio<- insure$Invol/(insure$Volun+insure$Invol)
+insure$VIPlus<- insure$Volun+insure$Invo
+```
+
+
+```{r echo=FALSE,out.width='25%', out.height='25%'}
+# plot(insure$Race,insure$VIRatio)
+# lines(lowess(insure$Race,(insure$VIRatio)),type='l',col='red')
+# lines(lowess(insure$Race,invlogit(insure$VIRatio)),type='l',col='red')
+# plot(insure$Race,invlogit(insure$VIRatio))
+# lines(lowess(insure$Race,insure$VIRatio),type='l',col='red')
+# plot(insure$Fire,insure$VIRatio)
+# lines(lowess(insure$Fire,insure$VIRatio),type='l',col='red')
+# plot(insure$Theft,insure$VIRatio)
+# lines(lowess(insure$Theft,insure$VIRatio),type='l',col='red')
+# plot(insure$Age,insure$VIRatio)
+# lines(lowess(insure$Age,insure$VIRatio),type='l',col='red')
+# plot((insure$Income),t(insure$VIRatio))
+# lines(lowess((insure$Income),(insure$VIRatio)),type='l',col='red')
+# plot(log(insure$Income),t(insure$VIRatio))
+# lines(lowess(log(insure$Income),(insure$VIRatio)),type='l',col='red')
+# plot(sqrt(insure$Income),t(insure$VIRatio))
+# lines(lowess(sqrt(insure$Income),(insure$VIRatio)),type='l',col='red')
+# plot((insure$Income),invlogit(insure$VIRatio))
+# lines(lowess((insure$Income),invlogit(insure$VIRatio)),type='l',col='red')
+
+# x<-as.matrix(insure[,c(2:5,8)])
+# y<-as.matrix(insure[,9])
+# t(x)%*%y/sqrt(apply(diag(5)%*%(t(x)%*%x)%*%diag(5),2,sum)*c(t(y)%*%y))
+merged_data <- inner_join(chicago_zip_boundaries, insure, by = c("zip" = "zip"))
+my_map<-ggplot() +
+  geom_sf(data = merged_data, aes(fill = Race)) +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(title = "Race in Chicago") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(size = 5))
+zip_summary <- merged_data %>%
+  group_by(zip) %>%
+  summarize(lon = mean(st_coordinates(geometry)[, 1]),
+            lat = mean(st_coordinates(geometry)[, 2]))
+
+# Add ZIP code labels to the map
+my_map +
+  geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+  
+ggplot() +
+  geom_sf(data = merged_data, aes(fill = Fire)) +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(title = "Fire in Chicago") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 5))+
+  geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+ggplot() +
+  geom_sf(data = merged_data, aes(fill = Theft)) +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(title = "Theft in Chicago") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 5))+
+  geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+ggplot() +
+  geom_sf(data = merged_data, aes(fill = Age)) +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(title = "Age in Chicago") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 5))+
+  geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+ggplot() +
+  geom_sf(data = merged_data, aes(fill = Volun)) +
+  scale_fill_gradient(low = "red", high = "white") +
+  labs(title = "Volun in Chicago") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 5))+
+  geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+ggplot() +
+  geom_sf(data = merged_data, aes(fill = Invol)) +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(title = "Invol in Chicago") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 5))+
+  geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+ggplot() +
+  geom_sf(data = merged_data, aes(fill = Income)) +
+  scale_fill_gradient(low = "red", high = "white") +
+  labs(title = "Income in Chicago") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 5))+
+  geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+ggplot() +
+  geom_sf(data = merged_data, aes(fill = VIRatio)) +
+  scale_fill_gradient(low = "white", high = "red") +
+  labs(title = "VIRatio in Chicago") +
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 5))+
+  geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+# ggplot() +
+#   geom_sf(data = merged_data, aes(fill = VIPlus)) +
+#   scale_fill_gradient(low = "white", high = "red") +
+#   labs(title = "VIplus by ZIP Code in Chicago") +
+#   theme_minimal()+
+#   theme(axis.text.x = element_text(size = 5))+
+#   geom_text(data = zip_summary, aes(x = lon, y = lat, label = zip), vjust = 1, hjust = 1, size = 1)
+```
+
+## Matrix of correlation and scatter plot 
+Take a further look on the correlation between each variables. From the matrix of plots
+below, it seems that Race really show high correlation with VIRation which is corresponding to our finding in general picture's pattern.We may also find Race show a strong linear relationship with Volun and Invol which may also suggest affect the underwriting practice to a large extent. We may found fire and Income show high correlation with IVRatio while Theft show low correlation with IVRatio.
+
+Besides, we can also easily learn the correlation between covariates  such as Race ,Fire and income.The high correlation and strong linear pattern of the scatter plot between Race and Income is also corresponding to the pattern of deeper red closer to center if we review the general picture.When it comes to plot and correlation  of theft and VIRatio, we may find the 2 variables seem to have no correlation.
+
+
+
+```{r echo=FALSE,out.width='95%', out.height='95%'}
+xx<-as.matrix(insure[,c(-1,-10)])
+ggpairs(data.frame(xx))
+```
+
+## Regression models
+
+Now, let us try regression modeling to have a deeper view on the relationship among several variables. Our response variable may be one of Volun , Invol and VIRatio. VIRatio is a product combining Volun and Invo and reflect the close ratio between rejection and all insurance requests.So we may first try 
+$$
+VIRatio_i=\beta_0 +\beta_1Race_i+\beta_2Fire_i+\beta_3Theft_i+\beta_4Age_i+\beta_5Income_i+\epsilon_i
+$$
+and
+$$
+\epsilon_i \sim iid \ Norm(0,\sigma^2)
+$$
+From the output we get 
+$$
+\hat{VIRatio_i}=\frac{-698.9749+29.64232Race_i+119.0461Fire_i-36.59007Theft_i+15.70569Age_i-0.001532509Income_i}{10^4}
+$$
+The output of linear regression shows that the coefficient $\beta_1,\beta_2,\beta_3$ are significant and indicating that in the model the coefficient of Race,Fire and Theft are important and should not be zero.However, when we plot the residuals ,we may find that the spread increases when the fitted value increases which may suggest transform the VIRatio to log(VIRaion).Besides, we also found a interesting pattern where low fitted values have a strong linear relationship with residuals. The strange points mainly come from the true value of $VIRatio_i$ which is 0.So the strange pattern of residuals can be explianed because all these points have the same VIRatio but different covariates values and the regression model is a linear predictor.
+
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+
+x<-as.matrix(insure[,c(2:5,8)])
+y<-as.matrix(insure[,9])
+model1<- lm(y ~ x)
+# model1$coefficients
+model.mu<- model1$fitted.values
+model.res<- model1$residuals
+plot(model.mu,model.res,xlab="regression fitted values",ylab="residuals",main="fitted values and residuals plot")
+# qqnorm(model.res)
+# qqline(model.res)
+```
+
+## Refitting on data with $VIRatio\neq 0$
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+# insurec<-insure[insure$Invol==0,]
+# nr<- nrow(insurec)
+# xc<-as.matrix(insurec[,c(2:5,8)])
+# yc<-as.matrix(insurec[,9])
+# modelc<- lm(sqrt(yc) ~xc)
+# summary(modelc)
+# model.mu<- modelc$fitted.values
+# model.res<-modelc$residuals
+# plot(model.mu,model.res)
+# qqnorm(model.res)
+# qqline(model.res)
+
+insurec_<-insure[insure$Invol!=0,]
+nr<- nrow(insurec_)
+xc<-as.matrix(insurec_[,c(2:5,8)])
+yc<-as.matrix(insurec_[,9])
+modelc<- lm(yc ~xc)
+# summary(modelc)
+model.mu<- modelc$fitted.values
+model.res<- modelc$residuals
+data<-data.frame(
+  Fitted_values= model.mu,
+  Residuals= model.res,
+  Race= xc[,1],
+  Fire=xc[,2],
+  Theft=xc[,3],
+  Age=xc[,4],
+  Income=xc[,5]
+)
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Race)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+theme(
+  panel.background = element_rect(fill = "grey"))
+# qqnorm(model.res)
+# qqline(model.res)
+
+
+# model2<- lm(sqrt(y)~-1+x[,1:3])
+# summary(model2)
+# model.mu<- model2$fitted.values
+# model.res<-model2$residuals
+# plot(model.mu,model.res)
+# qqnorm(model.res)
+# qqline(model.res)
+# 
+# library(MASS)
+# model3<- rlm(sqrt(y)~-1+x[,1:3])
+# summary(model2)
+# model.mu<- model3$fitted.values
+# model.res<-model3$residuals
+# plot(model.mu,model.res)
+# qqnorm(model.res)
+# qqline(model.res)
+
+#names(summary(model))
+# model2<- lm(VIRatio ~ -1+Race+Fire+Theft,data=insure)
+# # model2<- lm(invlogit(y)~x)
+# summary(model2)
+# model.coef<- (summary(model2)$coefficients)
+# model.mu<- predict(model2,data.frame(x))#x%*%model.coef[-1,1]+model.coef[1,1]
+# model.res<-summary(model2)$residuals
+# plot(model.mu,model.res)
+# qqnorm(model.res)
+# qqline(model.res)
+
+
+# model3<- lm(sqrt(y) ~x)
+# model.coef<- (summary(model3)$coefficients)
+# model.mu<- x%*%model.coef[-1,1]+model.coef[1,1]
+# model.res<-summary(model)$residuals
+# plot(model.mu,model.res)
+# model3<- glm(y ~x,family=binomial(link = "logit"))
+# model.coef<- (summary(model3)$coefficients)
+# model.mu<- predict(model3,data.frame(x))#x[,1:3]%*%model.coef[-1,1]+model.coef[1,1]
+# model.res<-summary(model)$residuals
+# plot(model.mu,model.res)
+
+```
+
+Let's first remove these $VIRatio_i=0$ points and fit the remaining data with the same model again. The plot above still indicates an increase in the spread of residuals as the fitted values increase. To address this issue, we apply either a logarithmic or square-root transformation transformation to $VIRatio_i$.Then fit the following model:
+\begin{equation}\label{log}
+log(VIRatio_i)=\beta_0 +\beta_1Race_i+\beta_2Fire_i+\beta_3Theft_i+\beta_4Age_i+\beta_5Income_i+\epsilon_i
+\end{equation}
+\begin{equation}\label{sqrt}
+\sqrt{VIRatio_i}=\beta_0 +\beta_1Race_i+\beta_2Fire_i+\beta_3Theft_i+\beta_4Age_i+\beta_5Income_i+\epsilon_i
+\end{equation}
+After refitting,from the plot below we may find the residuals pattern of fitted model (\ref{sqrt}) perform better than fitted model (\ref{log}).So we choose the model (\ref{sqrt}).
+```{r echo=FALSE,out.width='55%', out.height='55%'}
+insurec_<-(insure[insure$Invol!=0,])#[insurec_$Theft=147]
+nr<- nrow(insurec_)
+xc<-as.matrix(insurec_[,c(2:5,8)])
+yc<-as.matrix(insurec_[,9])
+modelc1<- lm(log(yc) ~xc)
+# summary(modelc)
+model.mu<- modelc1$fitted.values
+model.res<- modelc1$residuals
+data<-data.frame(
+  Fitted_values= model.mu,
+  Residuals= model.res,
+  Race= xc[,1],
+  Fire=xc[,2],
+  Theft=xc[,3],
+  Age=xc[,4],
+  Income=xc[,5]
+ 
+)
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Race)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Log Residuals plot")+theme(
+  panel.background = element_rect(fill = "grey"))
+# qqnorm(model.res)
+# qqline(model.res)
+
+insurec_<-insure[insure$Invol!=0,]
+nr<- nrow(insurec_)
+xc<-as.matrix(insurec_[,c(2:5,8)])
+yc<-as.matrix(insurec_[,9])
+modelc<- lm(sqrt(yc) ~xc)
+model.mu<- modelc$fitted.values
+model.res<- modelc$residuals
+data<-data.frame(
+  Fitted_values= model.mu,
+  Residuals= model.res,
+  Race= xc[,1],
+  Fire=xc[,2],
+  Theft=xc[,3],
+  Age=xc[,4],
+  Income=xc[,5]
+)
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Race)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Sqrt Residuals plot ")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+# qqnorm(model.res)
+# qqline(model.res)
+
+```
+```{r eval=FALSE, include=FALSE}
+# summary(modelc)
+```
+
+Then we may want to see the coefficients' significance to know whether we can reduce numbers of covariates to make model easier.
+
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+insurec_<-insure[insure$Invol!=0,]
+nr<- nrow(insurec_)
+xc<-as.matrix(insurec_[,c(2:5,8)])
+yc<-as.matrix(insurec_[,9])
+modelc<- lm(sqrt(yc) ~xc)
+# summary(modelc)#$coefficients
+```
+The outputs suggest that Intercept can not be rejected to be zero.So we may have a try to get a new reduced model:
+\begin{equation}\label{sqrt-1}
+\sqrt{VIRatio_i}=\beta_1Race_i+\beta_2Fire_i+\beta_3Theft_i+\beta_4Age_i+\beta_5Income_i+\epsilon_i
+\end{equation}
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+insurec_<-insure[insure$Invol!=0,]
+nr<- nrow(insurec_)
+xc<-as.matrix(insurec_[,c(2:5,8)])
+yc<-as.matrix(insurec_[,9])
+modelc<- lm(sqrt(yc) ~-1+xc)
+# summary(modelc)$coefficients
+model.mu<- modelc$fitted.values
+model.res<- modelc$residuals
+data<-data.frame(
+  Fitted_values= model.mu,
+  Residuals= model.res,
+  Race= xc[,1],
+  Fire=xc[,2],
+  Theft=xc[,3],
+  Age=xc[,4],
+  Income=xc[,5]
+)
+# apply(modelc$coefficients*cbind(insure[insure$Invol==0,c(2:5)],log(insure[insure$Invol==0,8])),1,sum)
+
+# round(modelc$coefficients,6)
+```
+The output seems show that all coefficients are significant in this reduced model \ref{sqrt-1} so we can't reject each coefficients equals to zero.Meanwhile, the R-squared is around 0.95 which may imply really good fitted result. To see more residuals plot to see whether the residuals have a good pattern and how well they fits iid normal distribution assumption, we usually apply a QQ plot.The qqnorm seems to perform neither  good nor bad because the point is not so near the qqline near zero while the overall performance seems not bad.We may also take a look at the residuals density plot which also explain the QQ plot results.The reasons for the not such good results of residuals could be small volume of data. 
+\begin{equation}\label{sqrt_h}
+\hat{\sqrt{VIRatio_i}}=0.003967Race_i+0.010082Fire_i-0.003817Theft_i+0.005378Age_i+-0.000017Income_i
+\end{equation}
+
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+qqnorm(model.res)
+qqline(model.res)
+plot(density(model.res),xlab = "residuals",main="residual distribution")
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Race)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Fire)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+
+
+
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Income)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Age)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Theft)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+
+
+
+```
+
+However ,the performance of this model \ref{sqrt_h} may be good enough to explain the data and residuals and show how Race and Age affect VIRatio.Meanwhile, from the colored residuals plot we ma also find the Race , Fire and Income play more important roles because the dark red and light red data points seem to be classified by fitted values.But the different colored points of Age and Theft are much more widely distributed on Fitted values which may suggest Age and Theft are weak factors.
+
+
+## Fit model to standrdized data 
+If we want to compare which variable may have the most strong influence, we may try to standardize the data to the same scale.So we standardize all covarites and then fit and select model on the whole data points.After serval practises on fitting and selections,we finally get the model below:
+\begin{equation}\label{sd}
+\hat{\sqrt{VIRatio_i}}=0.29260143+0.14751409\hat Race_i+0.12114695
+\hat Fire_i-0.07771471\hat Theft_i+0.07341757  \hat Age_i
+\end{equation}
+
+The qqplot seems to be good although the 0-Invol pattern exists.In the model (\ref{sd}) 
+We can find Race is much more influential to "rejected".Higher race composition means higher rate of "rejected".So does Fire while Theft and Age have weak infulence.
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+xc<-scale(insure[,c(2:5)])
+insurec_<-insure
+xc<-as.matrix(xc)
+yc<-as.matrix(insurec_[,9])
+modelc<- lm(sqrt(yc) ~ xc)
+# modelc$coefficients
+model.mu<- modelc$fitted.values
+model.res<- modelc$residual
+plot(model.mu,model.res,xlab="regression fitted values",ylab="residuals",main = "fitted values and residuals plot")
+qqnorm(model.res)
+qqline(model.res)
+ggpairs(data.frame(xc))
+# data<-data.frame(
+#   Fitted_values= model.mu,
+#   Residuals= model.res,
+#   Race= xc[,1],
+#   Fire=xc[,2],
+#   Theft=xc[,3],
+#   Age=xc[,4]
+# )
+# ggplot(data, aes(x = Fitted_values, y = Residuals, color = Race)) +
+#   geom_point() +
+#   scale_color_gradient(low = "white", high = "red") +
+#   labs(title = "Residuals plot")+ theme(
+#   panel.background = element_rect(fill = "grey")
+# )
+# 
+# ggplot(data, aes(x = Fitted_values, y = Residuals, color = Fire)) +
+#   geom_point() +
+#   scale_color_gradient(low = "white", high = "red") +
+#   labs(title = "Residuals plot")+ theme(
+#   panel.background = element_rect(fill = "grey")
+# )
+# 
+# ggplot(data, aes(x = Fitted_values, y = Residuals, color = Age)) +
+#   geom_point() +
+#   scale_color_gradient(low = "white", high = "red") +
+#   labs(title = "Residuals plot")+ theme(
+#   panel.background = element_rect(fill = "grey")
+# )
+# ggplot(data, aes(x = Fitted_values, y = Residuals, color = Theft)) +
+#   geom_point() +
+#   scale_color_gradient(low = "white", high = "red") +
+#   labs(title = "Residuals plot")+ theme(
+#   panel.background = element_rect(fill = "grey")
+# )
+```
+
+
+Finally, the Theft's coefficients in 2 model (\ref{sqrt_h}) and (\ref{sd}) are negative which may be contradict to the reality.The reasons may be various such as reduced data ,correlation (the correlation matrix plot somehow show the Theft to balance the other data influence on fitting )  and so on.Since Theft is weak ,it may not cause big problems.
+
+
+
+
+## Modeling on Volun as response variable
+
+The above discussion we pay much attention on "reject" and let us view the "accept" which may not completely showed by "reject" because the problems with data eg. $Invol=0$ or much more complex fact in reality.
+Similarly, our model is
+\begin{equation}\label{sqrt_v}
+\sqrt{Volun}=\beta_0+\beta_1Race_i+\beta_2Fire_i+\beta_3Theft_i+\beta_4Age_i+\beta_5Income_i+\epsilon_i
+\end{equation}
+```{r echo=FALSE,out.width='40%', out.height='40%'}
+x<-as.matrix(insure[,c(2:5,8)])
+y<-as.matrix(insure[,6])
+model1<- lm(sqrt(y) ~ x)
+# model1$coefficients
+model.mu<- model1$fitted.values
+model.res<- model1$residuals
+plot(model.mu,model.res,xlab="regression fitted values",ylab="residuals")
+# summary(model1)$coefficients
+
+qqnorm(model.res)
+qqline(model.res)
+```
+
+The fitted results of model \ref{sqrt_v} seems good from figures above.
+
+```{r include=FALSE, out.height='40%', out.width='40%'}
+# x<-as.matrix(insure[,c(2:5)])
+# y<-as.matrix(insure[,6])
+# model1<- lm(sqrt(y) ~ x)
+# # model1$coefficients
+# model.mu<- model1$fitted.values
+# model.res<- model1$residuals
+# plot(model.mu,model.res,xlab="regression fitted values",ylab="residuals")
+# summary(model1)$coefficients
+# 
+# qqnorm(model.res)
+# qqline(model.res)
+# round(model1$coefficients,6)
+```
+The fitted model is given by:
+\begin{equation}\label{sqrt_vh}
+\hat{\sqrt{Volun}}=3.386915-0.013038Race_i-0.025713Fire_i+0.005356Theft_i+-0.011476Age_i+0.000030Income_i
+\end{equation}
+Similarly, we find a strange positive value as coefficent of Theft.The reason may be the extreme data point(deep red) as shown in the below figure cause overfitting.
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+data<-data.frame(
+  Fitted_values= model.mu,
+  Residuals= model.res,
+  Race= x[,1],
+  Fire=x[,2],
+  Theft=x[,3],
+  Age=x[,4]
+)
+
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Theft)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+
+
+```
+```{r echo=FALSE}
+# library(car)
+# insurec_1<-insurec_
+# insurec_1$VIRatio <- sqrt(insurec_$VIRatio)
+# vif.model1<-vif(lm(VIRatio ~ -Race+Fire+Theft+Age+Income,data=insurec_))
+# vif.model1
+```
+
+```{r eval=FALSE, include=FALSE}
+# summary(lm(VIRatio ~ -1+Race+Fire+Theft,data=insure))
+```
+
+
+
+Let's remove the point and refit model.After sereval practices on model fitting and selection , the R output results suggest us to remove income and Theft.
+```{r include=FALSE, out.height='20%', out.width='20%'}
+x<-as.matrix(insure[,c(2:5,8)][insure$Theft<147,])
+y<-as.matrix(insure[,6][insure$Theft<147])
+model1<- lm(sqrt(y) ~ x)
+# model1$coefficients
+model.mu<- model1$fitted.values
+model.res<- model1$residuals
+# plot(model.mu,model.res,xlab="regression fitted values",ylab="residuals")
+# summary(model1)$coefficients
+# 
+# qqnorm(model.res)
+# qqline(model.res)
+```
+
+```{r include=FALSE, out.height='20%', out.width='20%'}
+x<-as.matrix(insure[,c(2,3,5,8)][insure$Theft<147,])
+y<-as.matrix(insure[,6][insure$Theft<147])
+model1<- lm(sqrt(y) ~ x)
+# model1$coefficients
+model.mu<- model1$fitted.values
+model.res<- model1$residuals
+# plot(model.mu,model.res,xlab="regression fitted values",ylab="residuals")
+# summary(model1)$coefficients
+# 
+# qqnorm(model.res)
+# qqline(model.res)
+```
+
+
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+x<-as.matrix(insure[,c(2,3,5)][insure$Theft<147,])
+y<-as.matrix(insure[,6][insure$Theft<147])
+model1<- lm(sqrt(y) ~ x)
+# model1$coefficients
+model.mu<- model1$fitted.values
+model.res<- model1$residuals
+# plot(model.mu,model.res,xlab="regression fitted values",ylab="residuals")
+# summary(model1)#$coefficients
+# round(model1$coefficients,5)
+plot(model.mu,model.res,xlab="regression fitted values",ylab="residuals",main="fitted values and residuals plot")
+```
+
+So the final model is given by:
+\begin{equation}\label{sqrt_vr}
+\sqrt{Volun}=\beta_0+\beta_1Race_i+\beta_2Fire_i+\beta_3Age_i+\epsilon_i
+\end{equation}
+The fitted model is:
+\begin{equation}\label{sqrt_vrh}
+\hat{\sqrt{Volun}}=3.95811-0.01318Race_i-0.03184Fire_i-0.01184Age_i
+\end{equation}
+The result of model (\ref{sqrt_vr}) show that all three factors have negative impact on $\sqrt{Volun}$.The residuals show good patterns shown by QQ plot.We can clearly see the general color changes when fitted values increase  from the plot below which also suggests a good fitted results.So to conclude , Race,Fire and Age affect the acceptance to a large extent.
+```{r echo=FALSE,out.width='50%', out.height='50%'}
+qqnorm(model.res)
+qqline(model.res)
+data<-data.frame(
+  Fitted_values= model.mu,
+  Residuals= model.res,
+  Race= x[,1],
+  Fire=x[,2],
+  Age=x[,3]
+)
+
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Race)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+
+
+
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Fire)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+
+ggplot(data, aes(x = Fitted_values, y = Residuals, color = Age)) +
+  geom_point() +
+  scale_color_gradient(low = "white", high = "red") +
+  labs(title = "Residuals plot")+ theme(
+  panel.background = element_rect(fill = "grey")
+)
+```
+
+
+## Conclusion
+Based on the overall analysis, it becomes evident that racial composition significantly affects underwriting practices, while the age of houses does not demonstrate such a pronounced impact on 'rejection'.However, when we model on Volun as response variable , we find both racial
+composition and age of housing affect the underwriting practices to an obvious large extent after controlling for factors like fire and others according to each  coefficients meaning in regression model is showing how response variable change with the coveriate increase when keeping  the other covariates unchanging.The racial composition plays an important role may imply the race discrimination exists in the insurance company while the age of house also may be taken into account of decision of insurance company.
+
+To summarize,both of both racial composition and age of housing may affect the "accept" and "reject" significantly according to the 3 model (\ref{sqrt_h}) (\ref{sd}) and \ref{sqrt_vrh}) when the other conditions keep the same.Meanwhile,racial composition is obviously influential while the influence age of house is shown much weaker.

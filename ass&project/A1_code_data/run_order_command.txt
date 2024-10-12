@@ -1,0 +1,4 @@
+cd Desktop/course/COMP6490/A1_code_data
+python indexer.py
+python query.py
+python evaluate.py

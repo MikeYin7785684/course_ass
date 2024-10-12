@@ -1,0 +1,30 @@
+{
+    "id": "CF68043A",
+    "path": "~/Downloads/L10a.qmd",
+    "project_path": null,
+    "type": "quarto_markdown",
+    "hash": "1001092339",
+    "contents": "",
+    "dirty": false,
+    "created": 1716020959514.0,
+    "source_on_save": false,
+    "relative_order": 4,
+    "properties": {
+        "rmdVisualMode": "true",
+        "rmdVisualWrapConfigured": "true",
+        "chunk_output_type": "console",
+        "source_window_id": "",
+        "Source": "Source",
+        "docOutlineVisible": "1",
+        "rmdVisualCollapsedChunks": "",
+        "rmdVisualModeLocation": "3073:0"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1716020956,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1716020956,
+    "read_only": false,
+    "read_only_alternatives": []
+}

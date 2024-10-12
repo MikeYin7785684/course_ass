@@ -1,0 +1,363 @@
+---
+title: "Part 3 Model and application"
+author: "Mike"
+format: beamer
+editor: visual
+jupyter: ir
+---
+
+## Basic idea
+
+Applications of different loss functions in making decisions under BHM , especially in spatio-temporal related process eg. decisions or predictions on floods in environmental science.
+
+-   Prediction is a decision
+
+-   Prediction of multivariate spatio-temporal processes
+
+-   Loss functions based on displacement
+
+-   Other classes of loss functions
+
+## Prediction is a decision
+
+### General Statistical model & estimation procedure & computation
+
+Consider BHM model on sequence $Y$ which is a latent random process , $(a_i)$ is a sequence of decisions and $L(a,y)$ is loss function. Therefore the risk function can be defined as follows
+
+$$
+R(a_i,y,z):=\int_{\mathcal{Y}}\int_{\mathcal{Z}}L(a,y)\ p(y,z)\ dz\ dy
+$$
+And minimizing the risk function above which is equal to minimizing the following risk function according to lecture 10a
+
+$$
+R(a_i,y):=\int_{\mathcal{Y}}L(a,y)\ p(y|z)\ dy=E[L(a,Y)|z]
+$$
+
+
+And the best soluation $a_i$ is given by $\delta^*(z)$ which means it depends on data $z$.
+
+If the loss function depends on the function of $Y$ eg. $g(Y)$.The risk function is given by 
+$$
+R(a_i,y):=E[L(a,g(Y)|z]
+$$
+
+## Predicion of multivariate spatio-temporal processes
+
+### Statistical model & estimation procedure
+The random latent process $Y$ may be multivariate spatio-temporal processes. 
+$$
+\mathbf{Y}:=\{Y_i(\mathbf{s},t):\mathbf s \in D_s,t\in D_t,i=1,\dots,n\}
+$$
+
+Thus, there is a correlation matrix of $\mathbf Y$ noted as $\mathbf R$ which can be decomposed as follows $$
+\mathbf{R}=\mathbf{P}\Lambda\mathbf{P'}=\sum^{n}_{i=1}\lambda_i\mathbf P_i\mathbf P_i'
+$$ The above equation can be derived because $\mathbf R$ can be conducted by the noise of random process meanwhile the correlation matrix is usually positive-definite .
+
+## 
+
+It may looks like to view $\mathbf Y$ as Gaussian process. Therefore, consider a kind of general loss function as 
+$$
+\mathcal{L}(a,\mathbf Y)=\sum_{i=1}^{n}L(\mathbf P_i'\mathbf a(s,t),\mathbf P_i'\mathbf Y(s,t))
+$$
+
+
+## Loss function based on displacement :symmetric loss function
+
+$$
+L(a,y)=||a-y||_p
+$$ When $p=0,1,2$ ,loss function are represented as 0-1 loss , absolute-deviation loss and squared-error loss respectively.
+
+## Loss function based on displacement :asymmetric loss function
+
+$$
+L(a,y)=(a-y)[\mathbb I_{(0,\infty)}(a-y)-q];q\in(0,1)
+$$
+<!-- The loss function above may be useful in predicting a river's crest-height at a time of heavy rainfall to decide how to react to a potential flood. -->
+
+### LINEX computation
+$$
+L(a,y)=exp\{\psi(a-y) \}-\psi(a-y)-1;\psi \in(-\infty,\infty)
+$$ The optimal predictor of $Y$: 
+$$
+\delta^*=\frac{1}{\psi}\log(E[exp\{\psi y\}|z])
+$$ 
+
+### Potential function
+
+$$
+L(a,Y)=-\log(f(a-y;\omega))+\log(f(0;\omega)); \omega\in \Omega
+$$
+
+## Loss function not based on displacement
+
+To gain property : $$
+L_w(a,y)=w(y)L(a,y)
+$$
+
+Consider following the risk function and the weigthed posterior
+
+\begin{align*}
+R:=\int w(y)&L(a,y)p(y|z)dy \propto \int L(a,y)p_w(y|z)dy .
+\\
+& p_w(y|z)\propto w(y)p(y|z)
+\end{align*} <!-- need to be added -->
+
+
+
+## Extension on data stimulation and real dataset
+
+
+```{R}
+# Load necessary libraries
+if(!require(mclust)) install.packages("mclust")
+if(!require(MASS)) install.packages("MASS")
+library(mclust)
+library(MASS)
+
+# Generate synthetic 2D data
+set.seed(123)
+n <- 1000
+mu1 <- c(2, 2)
+mu2 <- c(-2, -2)
+mu3 <- c(5, -3)
+sigma1 <- matrix(c(1, 0.5, 0.5, 1), 2, 2)
+sigma2 <- matrix(c(1, -0.7, -0.7, 1), 2, 2)
+sigma3 <- matrix(c(1, 0.2, 0.2, 1), 2, 2)
+linear_comb<- diag(3)
+data1 <- mvrnorm(n/3, mu1, sigma1)
+data2 <- mvrnorm(n/3, mu2, sigma2)
+data3 <- mvrnorm(n/3, mu3, sigma3)
+data<- rbind(data1,data2,data3)
+x1 <- t(linear_comb%*%rbind(data1[,1], data2[,1], data3[,1]))
+x2 <- t(linear_comb%*%rbind(data1[,2], data2[,2], data3[,2]))
+col<-c(rep("green",n/3),rep("red",n/3),rep("blue",n/3))
+datax<-cbind(c(x1[,1],x1[,2],x1[,3]),c(x2[,1],x2[,2],x2[,3]))
+# Plot the data
+plot(datax, col=col, pch=19, main="Generated 2D Data")
+
+# Custom loss function
+pdf_gaussian <- function(x, mu, sigma) {
+  det_sigma <- det(sigma)
+  const <- 1 / (sqrt((2*pi)^d * det_sigma))
+  exp_val <- exp(-0.5 * t(x - mu) %*% solve(sigma) %*% (x - mu))
+  return(const * exp_val)
+}
+
+# Define the PDF of the mixture of Gaussians
+logpdf_gaussian_mixture <- function(x, mus, sigmas) {
+  q=1
+  n <- nrow(mus)
+  pdf <- 0
+  for (i in 1:n) {
+    pdf <- pdf+log( pdf_gaussian(x[i,], mus[i,], sigmas[,,i]))
+  }
+  return(pdf)
+}
+# mle<-function(params, data1,data2,data3){
+#    n<-nrow(data1)
+#   lincom<- matrix(params[1:9],3,3)
+#   means<- matrix(params[10:15],3,2)
+#   sigma<- array(params[16:27],dim=c(2,2,3))
+#   y1<-rbind(data1[,1], data2[,1], data3[,1])
+#   y2<-rbind(data1[,1], data2[,1], data3[,1])
+#   log_loss<-0
+#   for(i in 1:n){
+#     x<-t(rbind(y1[,i]%*%solve(lincom), y2[,i]%*%solve(lincom)))
+#     log_loss<-log_loss+logpdf_gaussian_mixture(x,means,sigma)
+#   }
+#   -log_loss
+# }
+
+
+eg_loss <- function(params, data1,data2,data3) {
+  q=1
+  n<-nrow(data1)
+  lincom<- matrix(params[1:9],3,3)
+  means<- matrix(params[10:15],3,2)
+  sigma<- array(params[16:27],dim=c(2,2,3))
+  weights<- params[28:30]
+  y1<-rbind(data1[,1], data2[,1], data3[,1])
+  y2<-rbind(data1[,1], data2[,1], data3[,1])
+  p1<-eigen(cor(t(y1)))$vectors
+  p2<-eigen(cor(t(y2)))$vectors
+  dis<-NULL
+  for(i in 1:3){
+  dis<-rbind(dis,p1[,i]%*%(y1-rep(lincom%*%means[,1],n))+p2[,i]%*%(y2-rep(lincom%*%means[,2],n)))
+  }
+  loss<-0
+  for(i in 1:n){
+    # x<-t(rbind(y1[,i]%*%solve(lincom), y2[,i]%*%solve(lincom)))
+    loss<-loss+sum(dis[,i]^2)
+  }
+  (loss/n)+q*sum(means%*%t(means))
+}
+
+
+
+# Initialize parameters
+linc <- diag(3)
+means <- data[sample(1:nrow(data), k), ] # Randomly initialize means
+sigma <- array(0, dim=c(d, d, k))
+# for (i in 1:k) {
+#   sigma[,,i] <- matrix(c(1,0.5,0.5,1),2,2)
+# }
+sigma[,,1] <- matrix(c(1, 0.5, 0.5, 1), 2, 2)
+sigma[,,2] <- matrix(c(1, -0.7, -0.7, 1), 2, 2)
+sigma[,,3]<- matrix(c(1, 0.2, 0.2, 1), 2, 2)
+weights <- rep(1/3, 3) # Equal weights initially
+
+# Flatten parameters for optim
+params <- c(as.vector(linc),as.vector(means), as.vector(sigma), weights)
+
+# Optimize parameters using optim
+opt_result <- optim(par=params, fn=eg_loss,data1=data1,data2=data2,data3=data3, method="L-BFGS-B")
+
+# Extract optimized parameters
+opt_params <- opt_result$par
+opt_linc<-matrix(opt_params[1:9],3,3)
+opt_means <- matrix(opt_params[10:15], 3, 2)
+opt_sigma <- array(opt_params[16:27], dim=c(2, 2, 3))
+opt_weights <- opt_params[28:30]
+
+# # Plot results
+# plot(data, col='blue', pch=19, main="EM with Custom Loss Function")
+# colors <- c("red", "green", "blue")
+# points(opt_means, col=colors, pch=4, cex=2, lwd=2)
+# legend("topright", legend=c("Cluster 1 Mean", "Cluster 2 Mean", "Cluster 3 Mean"),
+#        col=colors, pch=4, pt.cex=2, lwd=2)
+
+
+
+
+
+```
+
+
+### custome different loss function in Xgboost predicition on flood
+
+```{R}
+library(xgboost) # for xgboost
+library(tidyverse)
+library(ggplot2)
+
+
+
+# Load the data
+data <- read.csv("kerala.csv")
+head(data)
+
+# Select numeric columns and exclude the 'YEAR' column
+data_x <- data %>%
+  select_if(is.numeric) %>%
+  select(- YEAR)
+head(data_x)
+
+# Convert the selected data to a numeric matrix
+mx <- data.matrix(data_x)
+
+# Convert the 'FLOODS' column to a binary numeric vector
+data_y <- ifelse(data$FLOODS == 'YES', 1, 0)
+head(data_y)
+data_combined <- cbind(data_x, FLOODS = data_y)
+# Calculate the correlation matrix
+correlation_matrix <- cor(data_combined)
+
+# Plot the correlation matrix
+ggcorr(correlation_matrix, 
+       label = TRUE, 
+       label_round = 2, 
+       label_size = 3, 
+       hjust = 0.75, 
+       size = 3, 
+       color = "grey50", 
+       layout.exp = 1, 
+       legend.position = "bottom") +
+  ggtitle("Correlation Matrix between Features and Target Variable (FLOODS)") +
+  theme_minimal()
+
+
+# Split data into training and testing sets
+set.seed(123)  # For reproducibility
+numOfTrain <- round(length(data_y) * 0.7)
+train_x <- mx[1:numOfTrain, ]
+train_y <- data_y[1:numOfTrain]
+test_x <- mx[(numOfTrain + 1):length(data_y), ]
+test_y <- data_y[(numOfTrain + 1):length(data_y)]
+
+# Create DMatrix for xgboost
+dtrain <- xgb.DMatrix(data = train_x, label = train_y)
+dtest <- xgb.DMatrix(data = test_x, label = test_y)
+
+# Train the model
+model <- xgboost(data = dtrain, nround = 2, objective = "binary:logistic")
+
+# Make predictions
+pred <- predict(model, dtest)
+
+# Calculate and print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_y)
+print(paste("test-error=", err))
+# Extract model parameters
+model_dump <- xgb.dump(model, with_stats = TRUE)
+
+cat(model_dump[1:10], sep = "\n")
+
+xgb.dump(model, with_stats = TRUE, fname = "xgboost_model_dump.txt")
+
+
+custom_objective <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  q <- 0.2  
+  a_minus_Y <- preds - labels
+  indicator <- ifelse(a_minus_Y > 0, 1, 0)
+  grad <- (indicator - q)
+  
+  hess <- rep(0.1, length(grad))  
+  
+  return(list(grad = grad, hess = hess))
+}
+
+
+model <- xgboost(data = dtrain, 
+                 nround = 2, 
+                 objective = custom_objective)
+
+# Make predictions
+pred <- predict(model, dtest)
+
+# Calculate and print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_y)
+print(paste("test-error=", err))
+
+linex <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  
+  psi <- 100  
+  z <- psi * (preds - labels)
+
+  grad <- psi*(exp(z) - 1)
+  hess <- psi*exp(z)
+  
+  return(list(grad = grad, hess = hess))
+}
+
+# Train the model with the custom objective function
+model <- xgboost(data = dtrain, 
+                 nround = 2, 
+                 objective = linex, 
+                 eval_metric = "error")
+
+# Make predictions
+pred <- predict(model, dtest)
+
+err <- mean(as.numeric(pred > 0.5) != test_y)
+print(paste("test-error=", err))
+```
+
+
+### model selectcion 
+
+
+```{R}
+
+```

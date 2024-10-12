@@ -1,0 +1,217 @@
+---
+title: "Midterm"
+author: "Mike"
+date: "2024-04-18"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+#1
+
+```{r}
+cw<-function(s,n=1000,m,v){
+#s,n,m,v stand for number of seats,stimulation number, the first m passengers spilled coffee on tickets and the v-th person who we inteested in 
+suc=0#success number
+prob=0
+for(i in 1:n){
+  cw_seat<-sample.int(s)#initial 
+  cw_drop<-sample(cw_seat,m)#first m random pick
+  if(all(cw_drop==cw_seat[1:m])){#if pick their own
+    suc<-suc+1
+  }
+  else{
+    idx=c()
+    for (cwd in cw_drop){
+    idx<-c(idx,which(cw_seat==cwd))
+    }
+    idx=sort(idx)
+    if(v<idx[1]){#pick all after v
+      suc<-suc+1
+    }
+    else{
+    if( !(v %in% idx) ){#not pick v
+    while (idx[1]<v & idx[1]!=1){
+      t<-idx[1]+1
+      rest_seat<-c(cw_seat[1],cw_seat[t:s])#jump to sitting wrong seat smallest 
+      cw_drop<-sample(rest_seat,1)
+      idx[1]<-which(cw_seat==cw_drop)
+      idx<-sort(idx)
+      if(idx[1]==1 | idx[1]>v)
+      {
+        suc<-suc+1
+      }
+    }
+    }
+  }
+  }
+  }
+prob<-suc/n
+return(prob)
+}
+cw(10,10000,1,10)
+cw(10,10000,1,5)
+cw(10,10000,2,10)
+```
+
+The a,b,c probability are about 0.50,0.86 and 0.48 respectively.
+#2
+2,
+a.The  log-likelihood function is 
+\begin{align*}
+\mathcal{L}(X;\theta)&=-\log(\theta)-\sum_{i=1}^n\frac{(X_i-\theta)^2}{4\theta^2}+c\\
+&=-n\log(\theta)-\sum_{i=1}^n\frac{X_i^2}{4\theta^2}+\frac{X_i}{2\theta}+c\\
+&=-n\log(\theta)-\sum_{i=1}^n\frac{X_i^2}{4\theta^2}+\sum_{i=1}^n\frac{X_i}{2\theta}+c
+\end{align*}
+According to factorization theorem which can also be represented by log-likelihood form. The sufficient statistics for $\theta$ is $(\sum_{i=1}^nX_i^2,\sum_{i=1}^nX_i)$
+
+b.
+\begin{align*}
+\mathcal{I}(\theta)&=-E[\frac{\partial^2}{\partial\theta^2}\log p(X;\theta)]\\
+&=-E[\frac{\partial^2}{\partial\theta^2}(-\log\theta-\frac{(x-\theta)^2}{4\theta^2}) ]\\
+&=-\frac{1}{\theta^2}+E(\frac{3x^2}{2\theta^4}-\frac{x}{\theta^3})\\
+&=\frac{5}{2\theta^2}
+\end{align*}
+Therefore, the CRLW for $\theta$ is $\frac{2\theta^2}{5n}$
+c.
+\begin{align*}
+Var(\bar X)&=\frac{1}{n}Var(X_i)\\
+&=\frac{2\theta^2}{n}
+\end{align*}
+Thus, the variance of $\bar X$ doesn't achieve the CRLW in small samples.
+
+#3
+a.
+$$
+\left\{\begin{array}{l}
+E(X) =\theta+\alpha\\
+Var(X)=\theta^2
+\end{array}\right.
+$$
+Hence, moment estimators for $\theta$ and $\alpha$ are $\sqrt{\frac{1}{n-1}\sum_{i=1}^{n}(X_i-\bar X)^2}$  and $\bar X -\sqrt{\frac{1}{n-1}\sum_{i=1}^{n}(X_i-\bar X)^2}$ respectively.
+
+b.
+
+$$
+\left\{\begin{array}{l}
+0=\frac{\partial\mathcal{L}}{\partial \theta}=-\frac{n}{\theta}+\sum_{i=1}^{n}\frac{x_i-\alpha}{\theta^2}
+\\
+\frac{\partial\mathcal{L}}{\partial \alpha}=\sum_{i=1}^n\frac{1}{\theta}
+\end{array}\right.
+$$
+Consider $\theta$ fixed, to get maximum likelihood $\alpha=min(X_i)\ \ i=1,\dots,n$ and $\alpha$ could also be denoted as $X_{(1)}$
+Besides,
+
+$$
+\left\{\begin{array}{l}
+\frac{\partial^2\mathcal{L}}{\partial \theta^2}=\frac{n}{\theta^2}-\sum_{i=1}^{n}\frac{x_i-\alpha}{2\theta^3}
+\\
+\frac{\partial^2\mathcal{L}}{\partial \alpha^2}=0
+\\
+\frac{\partial^2\mathcal{L}}{\partial \theta\partial\alpha}=\frac{\partial^2\mathcal{L}}{\partial\alpha\partial\theta}
+=-\frac{n}{\theta^2}
+\end{array}\right.
+$$
+Thus $\bar x=\theta+\alpha$ and the Hessian matrix is half negative definite.
+The mle for $\theta$ and $\alpha$ are $\bar X-X_{(1)}$ and $X_{(1)}$
+
+c.
+
+
+```{r}
+n<-100
+theta<-3
+x<-rexp(n,1/theta)+1
+hist(x,xlab="X",main="Sample of X")
+abline(v=mean(x),col="red")
+abline(v=4,col="blue")
+
+```
+
+The blue vertical line is ture value while the red one is mean.
+
+d.
+
+```{r}
+S<-1000
+n<-100
+alpha<-c()
+theta<-c()
+for(i in 1:S){
+  theta<-3
+  x<-rexp(n,1/theta)+1
+  alpha<-c(alpha,min(x))
+  theta<-c(theta,mean(x)-min(x))
+}
+hist(alpha,xlab=expression(paste("Value of ", alpha)),main=expression(paste("Sample of ", alpha)))
+hist(x,xlab=expression(paste("Value of ", theta)),main=expression(paste("Sample of ", theta)))
+
+```
+
+
+e.
+There are 2 parameters so the Newton-Rasphson routine may be more complicated than method in 1 dimension.
+But the basic idea is simple. We just replace the derivative with the  gradient of function .
+We just use  negative log likelihood function as  target function.
+
+
+4
+a.
+$$
+pmf(w)=\frac{\theta^w}{w!}\frac{e^{-\theta}}{(1-e^{-\theta})}
+$$
+b.
+1.
+$$
+E_\theta(W) =\frac{\theta}{1-e^{-\theta}}
+$$
+Thus, 
+$$
+\frac{\partial E_\theta(W) }{\partial \theta }=\frac{1-e^{-\theta}+\theta e^{-\theta}}{(1-e^{-\theta})^2}
+$$
+is decreasing postive function since $\frac{1-e^{-\theta}}{(1-e^{-\theta})^2}$ and $\frac{\theta e^{-\theta}}{(1-e^{-\theta})^2}$ are decreasing when $\theta>0$.
+Thus we could use Newton-Raphson approach to calculate $\frac{\theta}{1-e^{-\theta}}-\bar{w}$
+
+```{r}
+
+```
+
+2.
+\begin{align*}
+0&=\frac{\partial \mathcal{L}(\theta, W) }{\partial \theta }=\sum_{i=1}^{n}w_i\frac{1}{\theta}-1-\frac{e^{-\theta}}{1-e^{-\theta}}\\
+\end{align*}
+Thus, $\frac{\theta}{1-e^{-\theta}}-\bar{w}=0$
+3.
+```{r}
+da<-read.csv(file ="data.csv")
+wbar<-mean(da[,1])
+n<-1000
+theta=100
+err=1
+while(err>1e-3){
+f<-theta/(1-exp(-theta))-wbar
+fdash<-(1-exp(-theta)+theta*exp(-theta))/(1-exp(-theta))^2
+err<-f/fdash
+theta<- theta-err
+}
+theta
+```
+
+
+
+4.
+```{r}
+fn<-function(w,theta){
+  (-sum(w*log(theta)-theta-log(factorial(w))-log(1-exp(-theta))))
+}
+optim(par=100,fn=fn,w=da[,1],method = "BFGS")
+
+
+
+```
+
+
+
+
+

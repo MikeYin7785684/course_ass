@@ -1,0 +1,510 @@
+---
+title: "Statistical Inference"
+subtitle: "Lecture 10a - Decision Theory"
+author: "ANU - RSFAS - AHW3"
+date:  last-modified
+date-format: "[Last Updated on] MMM D, YYYY"
+format: beamer
+header-includes:
+  - \input{preamble.tex}
+editor: visual
+editor_options: 
+  chunk_output_type: console
+---
+
+## Decision Theory
+
+-   The elements of a basic decision theory problem:
+
+    1.  A number of \tb{`actions'} are possible; we must decide which to take.
+    2.  A number of \tb{`states of nature'} are possible; we don't know in general which will occur.
+    3.  The relative desirability of the various \tb{actions} for each \tb{state of nature} can be quantified.
+    4.  Prior information may be available regarding the relative probabilities of the \tb{various states of nature}.
+    5.  Data may be available which will add to our knowledge of the relative probabilities of the \tb{states of nature}.
+
+## Decision Theory
+
+-   Let $\bs{\theta}$ denote the \tb{true state of nature}.
+-   Suppose we are able to observe some data . . . a draw from the random variable $\bs{X}$, whose distribution depends on $\bs{\theta}$. \tg{Sometimes no data are available.}
+-   A \tr{decision procedure $\delta$}, specifies which \tb{action} to take for each value of $\bs{X}$.
+-   If we observe $\bs{X} = \bs{x}$, the we adopt the procedure $\delta(\bs{x})$.
+-   Whether $\delta(\bs{x})$ was a good choice depends on the \tr{loss function}, which measures the loss from $\delta(\bs{x})$ when $\bs{\theta}$ holds.
+
+$$L_{S}(\bs{\theta}, \delta(\bs{x}))$$ Note: The negative of a loss function is a utility function.
+
+## Decision Theory
+
+-   Frequentists want to minimize expected loss.
+
+$$min_{\delta} \int L_S(\bs{\theta}, \delta(\bs{x})) f(\bs{x}; \bs{\theta}) d \bs{x}$$
+
+-   Bayesians want to minimize posterior expected loss.
+
+$$min_{\delta} \int L_S(\bs{\theta}, \delta(\bs{x})) p(\bs{\theta}| \bs{x}) d \bs{\theta}$$
+
+## Decision Theory
+
+**Eg.** (Lindley 1985) A doctor has the task of deciding whether or not to carry out a dangerous operation on a person suspected of suffering from a disease.
+
+-   If he has the disease and does operate, the chance of recovery is only 50%; without the operation the chance is only 5%.
+
+-   If he does not have the disease and the operation is performed there is 20% of his dying as a result of the operation, whereas there is no chance of death without the operation.
+
+-   The patient has the following utilities for recovery and death $u(R)=1$ and $u(\bar{R})=0$. \[Note that we have utilities here, not loss functions.\]
+
+-   Advise the doctor (You may assume there are always only two possibilities, death or recovery.).
+
+## 
+
+\footnotesize
+
+-   There are two possible decision procedure: $\delta_1 = \textrm{operate}$, $\delta_2 = \textrm{not operate}$.
+-   There are two states of nature: $\theta_1 = \textrm{patient has the disease}$, $\theta_2 = \textrm{patient does not have the disease}$.
+-   There are two outcomes: $z_1 = \textrm{full recovery}$, $z_2 = \textrm{death}$.
+
+## 
+
+\footnotesize
+
+-   If the doctor operates, we have the following expected utility:
+
+```{=tex}
+\begin{eqnarray*}
+\sum_{i=1}^2 u(z_i) P(z_i) &=& [ P(R|D)P(D) + P(R|\bar{D})P(\bar{D})] u(R) + \\ 
+&& [ P(\bar{R}|D)P(D) + P(\bar{R}|\bar{D})P(\bar{D})] u(\bar{R}) \\ \\
+&=&  [ 0.5P(D) +0.8 P(\bar{D})] u(R) + [ 0.5 P(D) + 0.2 P(\bar{D})] u(\bar{R}) + 
+\end{eqnarray*}
+```
+-   If the doctor does not operate, we have the following expected utility:
+
+```{=tex}
+\begin{eqnarray*}
+\sum_{i=1}^2 u(z_i) P(z_i) &=& [ P(R|D)P(D) + P(R|\bar{D})P(\bar{D})] u(R) + \\
+&& [ P(\bar{R}|D)P(D) + P(\bar{R}|\bar{D})P(\bar{D})] u(\bar{R}) \\ \\
+&=&  [ 0.05 P(D) + 1P(\bar{D})] u(R) + [ 0.95P(D) +0P(\bar{D})] u(\bar{R})
+\end{eqnarray*}
+```
+## 
+
+\footnotesize
+
+```{r}
+#| echo: true
+#| eval: true
+
+dec.lind <- function(u.death, u.rec){
+
+	p.dis <- seq(0,1, by=0.01)
+	
+	u.op <- rep(0, length(p.dis))
+	u.d.op <- rep(0, length(p.dis))
+	
+	for(i in 1:length(p.dis)){
+	u.op[i] <- (0.5*p.dis[i] + 0.8*(1-p.dis[i]))*u.rec +  
+	  (0.5*p.dis[i] + 0.2*(1-p.dis[i]))*u.death
+	u.d.op[i] <- (0.05*p.dis[i] + 1*(1-p.dis[i]))*u.rec +  
+	  (0.95*p.dis[i] + 0*(1-p.dis[i]))*u.death	
+		}
+
+	opt <- p.dis[u.op>u.d.op][1]
+	
+
+	
+return(list(p.dis, u.op, u.d.op, opt)) 
+}
+
+```
+
+## 
+
+\footnotesize
+
+```{r}
+#| echo: true
+#| eval: false
+
+out <- dec.lind(u.death=0, u.rec=1)
+p.dis <- out[[1]]
+u.op <- out[[2]]
+u.d.op <- out[[3]]
+opt <- out[[4]]
+
+
+plot(p.dis, u.op, type="l", lwd=2, ylab="expected utility", 
+     xlab="probability of disease in the population", col="blue", lty=2)
+lines(p.dis, u.d.op, col="red", lwd=2, lt=3)
+abline(v=opt,lwd=3)
+```
+
+## 
+
+\footnotesize
+
+```{r, echo=FALSE}
+#| echo: false
+#| eval: true
+
+out <- dec.lind(u.death=0, u.rec=1)
+p.dis <- out[[1]]
+u.op <- out[[2]]
+u.d.op <- out[[3]]
+opt <- out[[4]]
+
+
+plot(p.dis, u.op, type="l", lwd=2, ylab="expected utility", xlab="probability of disease in the population", col="blue", lty=2)
+lines(p.dis, u.d.op, col="red", lwd=2, lty=3)
+abline(v=opt,lwd=3)
+```
+
+## 
+
+-   The only information we don't have is the probability of disease in the population. This will be made based on the physician's judgment.
+
+-   The blue line in the figure represents the expected utility for the operation against the probability of disease in the population.
+
+-   The red line is the expected utility for not operating against the disease in the population.
+
+-   The lines cross at $P(D)= `r opt`$. Since we want to maximize expected utility, the the physician should not operate if $P(D) < `r opt`$ and should operate if $P(D)> `r opt`$.
+
+## Decision Theory
+
+**Def (Stern Definition 2.7):** The **risk function** $R(\bs{\theta}, \delta(\bs{x}))$ is defined as
+
+$$R(\bs{\theta}, \delta(\bs{x})) = \int L_{S}(\bs{\theta}, \delta(\bs{x})) \ \  L(\bs{\theta}; \bs{x}) d\bs{x}.$$
+
+This is the expected loss with respect to the joint distribution (i.e. likelihood).
+
+## Decision Theory
+
+**Def (Stern Definition 2.7):** A procedure $\delta_1$ is **inadmissible** if there exists another procedure $\delta_2$ such that
+
+$$R(\bs{\theta}, \delta_1) \ \geq \ R(\bs{\theta}, \delta_2) \ \ \forall \bs{\theta},$$
+
+with strict inequality for some $\bs{\theta}$.
+
+## Decision Theory
+
+**Def (Stern Definition 2.7):** The **minimax procedure** is such that
+
+$$\textrm{max}_{\bs{\theta}} R(\bs{\theta}, \delta)$$
+
+is minimized.
+
+-   Here we take a pessimistic view of the world by assuming \tb{nature} is malevolent.
+
+## Decision Theory
+
+**Def (Stern Definition 2.13 and 2.14):** A **Bayes** procedure is such that the **Bayes risk**
+
+$$\int R(\bs{\theta}, \delta) p(\bs{\theta}) d\bs{\theta}$$
+
+is minimized. \tb{Expected risk with regard to the prior distribution minimized.}
+
+## Decision Theory
+
+-   Consider:
+
+```{=tex}
+\begin{eqnarray*}
+\int R(\bs{\theta}, \delta) p(\bs{\theta}) d\bs{\theta} &=& \int_{\bs{\Theta}} \left[\int_{\bs{\mathcal{X}}} L_{S}(\bs{\theta}, \delta) \ L(\bs{\theta}; \bs{x}) \ d\bs{x} \right]  \ p(\bs{\theta}) \  d\bs{\theta} \\
+&=& \int_{\bs{\Theta}} \int_{\bs{\mathcal{X}}} L_{S}(\bs{\theta}, \delta) \ \frac{L(\bs{\theta}; \bs{x}) \ p(\bs{\theta})}{p(\bs{x})} p(\bs{x}) \ d\bs{x} \  d\bs{\theta} \\
+&=& \int_{\bs{\Theta}} \int_{\bs{\mathcal{X}}} L_{S}(\bs{\theta}, \delta) \ p(\bs{\theta}| \bs{x}) \ p(\bs{x}) \ d\bs{x} \  d\bs{\theta} \\
+&=& \int_{\bs{\mathcal{X}}} p(\bs{x}) \tr{\left[\int_{\bs{\Theta}}  L_{S}(\bs{\theta}, \delta) \ p(\bs{\theta}| \bs{x}) \  d\bs{\theta} \right]} \ d\bs{x}  \\
+\end{eqnarray*}
+```
+-   For any value of $\bs{x}$ we should minimize \tr{$\int_{\bs{\Theta}}  L_{S}(\bs{\theta}, \delta) \ p(\bs{\theta}| \bs{x}) \  d\bs{\theta}$}, which is **posterior expected loss**.
+
+## Decision Theory
+
+-   Under certain conditions:
+    1.  A Bayes procedure in necessarily admissible.
+    2.  Every admissible procedure is a Bayes procedure for some prior distribution.
+-   For example, if $\bs{\theta}$ is discrete and and only takes a number of finite values then (2) holds. Additionally if $P(\bs{\theta})> 0$ for all $\bs{\theta}$ then (1) holds.
+
+## Decision Theory
+
+-   The link between Bayes and minimax procedures (Stern Theorem 2.9):
+
+    1.  A Bayes procedure with constant risk for $\bs{\theta}$ is minimax.
+    2.  A minimax procedure is generally a Bayes procedure for some prior distribution. In particular, the so called **least favourable prior distribution**.
+
+## Decision Theory
+
+\footnotesize
+
+**Eg.** (Berger 2006) An insurance company is faced with taking one of the following 3 actions (decision procedures): $\delta_1$: increase sales force by 10%; $\delta_2$: maintain present sales force; $\delta_3$: decrease sales by 10%. Depending on whether the economy is good ($\theta_1$), mediocre ($\theta_2$), or bad ($\theta_3$). The company would expect to lose the following amounts of money in each case:
+
+```{=tex}
+\begin{center}
+\begin{tabular}{c|ccc}
+& $\theta_1$ & $\theta_2$ & $\theta_3$ \\ \hline
+$\delta_1$ & 0 & 5 & 7 \\
+$\delta_2$ & 5 & 5 & 9 \\
+$\delta_3$ & 11 & 10 & 9 \\
+\end{tabular}  
+\end{center}
+```
+1.  Determine if each action is inadmissible.
+
+2.  The company believes that $\theta$ has the probability distribution $\pi(\theta_1)=0.2, \pi(\theta_2)=0.3, \pi(\theta_3)=0.5$. Order the actions according to their Bayesian expected loss (equivalent to the Bayes risk here since this is a no data problem) and state the Bayes action.
+
+3.  Order the actions according to the minimax principle and find the minimax action.
+
+## 
+
+-   We have no data in this case, which means we have no likelihood, which means the Risk is just the Loss.
+
+$$R(\bs{\theta}, \delta) = E[L_S(\bs{\theta}, \delta)] = L_{S}(\bs{\theta}, \delta)$$
+
+-   So we just want to see if a $\delta$ is dominated by another $\delta$s. Note:
+
+$$L_{S}(\bs{\theta}, \delta_3) \geq L_{S}(\bs{\theta}, \delta_j)$$
+
+for $j=2,3$ and for all $\theta$. So $\delta_3$ is inadmissible (dominated by $\delta_2$, $\delta_1$). Also, $\delta_2$ is inadmissible as it is dominated by $\delta_1$.
+
+## 
+
+-   To find the Bayes decision procedure, we want to minimize posterior expected loss. Here we don't have data, so we just minimize the Bayes risk:
+
+$$min_{\delta} \sum_{i=1}^3 L_S(\theta_i, \delta) p(\theta_i)$$
+
+$$\sum_{i=1}^3 L_S(\theta_i, \delta_1) p(\theta_i) = 0.2(0) + 0.3(5) + 0.5(7) = 5$$ $$\sum_{i=1}^3 L_S(\theta_i, \delta_2) p(\theta_i) = 0.2(5) + 0.3(5) + 0.5(9) = 7$$ $$\sum_{i=1}^3 L_S(\theta_i, \delta_3) p(\theta_i) = 0.2(11) + 0.3(10) + 0.5(9) = 9.7$$
+
+So $\delta^* = \delta_1$.
+
+## 
+
+-   To find the minimax procedure (no data):
+
+$$min_{\delta} \ max_{\theta} \ R(\theta, \delta) = min_{\delta} \ max_{\theta} \ L_S(\theta, \delta)$$
+
+$$max_{\theta} \ L_S(\theta, \delta) = \left\{ \begin{array}{cc} \delta_1: & 7 \\
+                                                                \delta_2: & 9  \\
+                                                                \delta_3: & 11 \end{array} \right.$$
+
+-   Now take the minimum: $\delta^* = \delta_1$.
+
+## Decision Theory - Point Estimation
+
+1.  The possible actions are possible estimators.
+2.  Possible states of nature correspond to the true value of $\theta$.
+3.  Loss is some function of the estimator $\hat{\theta}$ and $\theta$: $L_S(\theta, \delta=\hat{\theta})$.
+4.  Prior information is quantified by means of a prior distribution $p(\theta)$.
+5.  The available data, are our draws from $f(x| \theta)$.
+
+## Decision Theory - Point Estimation
+
+-   Some simple loss functions:
+
+1.  Zero-one loss:
+
+$$L_S(\theta, \delta=\hat{\theta}) = \left\{ \begin{array}{cc} 0, & | \hat{\theta} - \theta | < b, \\
+                                                              a, & | \hat{\theta} - \theta | \geq b \end{array} \right.$$
+
+where $a, b > 0$.
+
+2.  Absolute error loss: $$L_S(\theta, \delta=\hat{\theta}) = a| \hat{\theta} - \theta |$$
+
+3.  Squared Error Loss (quadratic loss): $$L_S(\theta, \delta=\hat{\theta}) = a (\hat{\theta} - \theta)^2$$
+
+## Decision Theory - Point Estimation
+
+-   For squared-error loss we, we want to choose $\hat{\theta}$ to minimize:
+
+\footnotesize
+
+```{=tex}
+\begin{eqnarray*}
+\int (\hat{\theta} - \theta)^2 p(\theta | \bs{x}) d\theta &=& E_{\tr{\theta|\bs{x}}} \ [(\hat{\theta} - \theta)^2] \\
+&=& E_{\tr{\theta|\bs{x}}} \ [(\hat{\theta} - \bar{\theta} + \bar{\theta}  - \theta)^2] \\
+&=& E[ ( (\hat{\theta} - \bar{\theta}) - (\theta- \bar{\theta}) )^2] \\
+&=& E[(\hat{\theta} - \bar{\theta})^2 - 2(\hat{\theta} - \bar{\theta})(\theta- \bar{\theta}) + (\theta- \bar{\theta})^2 ] \\
+&=& E[(\hat{\theta} - \bar{\theta})^2] - 2(\hat{\theta} - E[\theta]) E[(\theta- E[\theta]] + E[\theta- E[\theta])^2] ] \\
+&=& E[(\hat{\theta} - \bar{\theta})^2] - 2(\hat{\theta} - \bar{\theta}) E[(\theta- \bar{\theta})] + E[(\theta- \bar{\theta})^2 ] \\
+&=& (\hat{\theta} - \bar{\theta})^2 + E[(\theta- \bar{\theta})^2 ] \\
+&=& (\hat{\theta} - \bar{\theta})^2 + V[\theta]
+\end{eqnarray*}
+```
+Where $\bar{\theta}$ is the posterior mean.
+
+-   To minimize, we set $\hat{\theta} = \bar{\theta}$.
+
+## Decision Theory - Point Estimation
+
+-   Absolute error loss: $E[ | \theta - \hat{\theta} |] = \int | \theta - \hat{\theta} | p(\theta | \bs{x}) d \bs{\theta}$.
+
+-   This is minimized when $\hat{\theta}=$ median.
+
+**Proof:** Let $m$ be the median of $p(\theta|\bs{x})$, and let $a>m$ be another decision procedure. Note that:
+
+$$L_S(\theta, m) - L_S(\theta, a) =  \left\{\begin{array}{ll}    m - a  & \textrm{ if } \theta \leq m \\
+                                                             2 \theta - (m+a) & \textrm{ if } m < \theta < a \\
+                                                             a - m  & \textrm{ if } \theta \geq a \\
+                                                             \end{array} \right.$$
+
+So:
+
+$$L_S(\theta, m) - L_S(\theta, a) \leq (m-a)I_{(-\infty, m)}(\theta) + (a-m)I_{(m, \infty)}(\theta)$$
+
+## 
+
+\footnotesize
+
+```{=tex}
+\begin{eqnarray*}
+E[L_S(\theta, m) - L_S(\theta, a)]\ &\leq& (m-a)E[I_{(-\infty, m)}(\theta)] + (a-m)E[I_{(-\infty, m)}(\theta)] \\
+& \leq & (m-a)P(\theta \leq m | \bs{x}) + (a-m)P(\theta > m | \bs{x}) \\
+& \leq & (m-a)(1/2) + (a-m)(1/2) = 0
+\end{eqnarray*}
+```
+-   So the expected loss for m is smaller or equal $a$. We can make the same argument for $a < m$. Thus the median minimizes $E[ | \theta - \hat{\theta} |]$.
+
+## Decision Theory - Point Estimation (Eg. from L01b)
+
+**Eg.**: $X_1, \ldots, X_n \iid \textrm{Bernoulli} (\theta)$.
+
+-   Consider the following prior, $\theta \sim \textrm{beta}(a, b)$.
+
+$$p(\theta) = \frac{\Gamma(a+b)}{\Gamma(a) \Gamma(b)} \theta^{a-1} (1-\theta)^{b-1}$$
+
+-   From this, we can determine the posterior:
+
+$$[\theta| \bs{x}] \sim \textrm{beta}(a^*, b^*)$$
+
+$$a^* = a + y; \ \ b^* = b+n-y$$ Where $Y = \sum_{i=1}^n X_i$.
+
+## Decision Theory - Point Estimation
+
+-   Let's consider the Bayesian estimator under squared error loss (this is the mean of the posterior):
+
+$$\hat{\theta} = \frac{y+a}{a+b+n}$$
+
+-   If we want the Bayes estimator under absolute error loss, it would be the median of the posterior.
+
+## Decision Theory - Point Estimation
+
+-   What is the minimax estimator under squared error loss? \tr{A Bayes procedure with constant risk for $\bs{\theta}$ is minimax.}
+
+-   The risk function is (be careful . . . we are leaving Bayesian land for the moment):
+
+$$R(\theta, \delta = \hat{\theta}) = \int L_{S}(\bs{\theta}, \delta(\bs{x})) \ \  L(\bs{\theta}; \bs{x}) d\bs{x}$$ $$E_{\tr{\bs{x}|\theta}} = [\textrm{Bias}(\hat{\theta})]^2 + Var[\hat{\theta}]$$
+
+```{=tex}
+\begin{eqnarray*}
+E\left[ \frac{Y+a}{a+b+n} \right] &=&  \frac{E[Y] + a}{a+b+n}  = \frac{n \theta + a}{a+b+n}\\
+V\left[ \frac{Y+a}{a+b+n} \right] &=& \left[ \frac{1}{a+b+n} \right]^2 V(Y) = \left[ \frac{1}{a+b+n} \right]^2 n \theta (1-\theta) \\
+\end{eqnarray*}
+```
+## Decision Theory - Point Estimation
+
+```{=tex}
+\begin{eqnarray*}
+R(\theta, \delta(\bs{x})) &=& \left[ \frac{n\theta(1-\theta)}{(a+b+n)^2} \right] + \left[\frac{n\theta + a}{a+b+n} - \theta\right]^2 \\
+&=& \frac{[\theta(a + b) - a]^2 + n\theta(1-\theta)}{[a+b+n]^2}
+\end{eqnarray*}
+```
+-   It turns out that if we set $a = b = \sqrt{n/4}$ then we get (which is constant for $\theta$):
+
+$$R(\theta, \delta=\hat{\theta}) = \frac{1}{(4 (1+\sqrt{n})^2)}$$
+
+$$\hat{\theta} = \frac{Y + \sqrt{n/4}}{n +\sqrt{n}}$$
+
+## James-Stein Estimator (CASI 7.1-7.2)
+
+\small
+
+-   Stein was the first person to realize that $\bar{X}$ for a multivariate normal distribution with $p \geq 3$ is **inadmissible**!
+
+-   See Stein 1995
+
+-   This discussion is taken from \textit{Decision Theory} by Parmigiani and Inou.
+
+-   Consider data $X = (x_1, \ldots, x_p)' \sim \textrm{multivariate normal} (\bs{\theta}, \bs{I}_p)$.
+
+-   We can show, but won't (see Parmigiani and Inoue):
+
+$$E_{\bs{x}|\bs{\theta}} \left[   \frac{\sum x_i \theta_i}{\sum x_i^2} \right] = E_{y|\bs{\theta}} \left[   \frac{2 y}{p-2+2y} \right]$$ $$E_{\bs{x}|\bs{\theta}} \left[   \frac{1}{\sum x_i^2} \right] = E_{y|\bs{\theta}} \left[   \frac{1}{p-2+2y} \right]$$ Where $y \sim \textrm{Poisson}( \sum \theta_i^2/2)$.
+
+## 
+
+-   For a single multivariate data point $\bs{x}$, the MLE is $\hat{\bs{\theta}} = \bs{x}$.
+
+-   Consider the following loss function:
+
+$$L_S(\bs{\theta}, \bs{\delta}) = \sum_{i=1}^p (\theta_i - \delta_i)^2$$
+
+-   Consider the decision procedure:
+
+$$\bs{\delta}_1 = \bs{x} \left[ 1 - \frac{p-2}{\sum_{i=1}^p x_i^2} \right]$$
+
+$\bs{\delta}_1$ dominates $\bs{\delta}=\bs{x}$, which is the MLE!
+
+## 
+
+**Proof:** The risk function for $\bs{\delta}$ is:
+
+```{=tex}
+\begin{eqnarray*}
+R(\bs{\theta}, \bs{\delta}) &=& \int L_S(\bs{\theta}, \bs{\delta}) p(\bs{x} | \bs{\theta}) d\bs{x} \\
+&=&  \int \sum_{i=1}^p (\theta_i - \delta_i)^2 p(x_i | \theta_i) dx_i \\
+&=&  \int \sum_{i=1}^p (\theta_i - x_i)^2 p(x_i | \theta_i) dx_i \\
+&=& \sum_{i=1}^p V(x_i | \theta_i) = p
+\end{eqnarray*}
+```
+## 
+
+-   The risk function for $\bs{\delta}_1$ is:
+
+\scriptsize
+
+```{=tex}
+\begin{eqnarray*}
+R(\bs{\theta}, \bs{\delta}) &=& E_{\bs{x}|\bs{\theta}} \left\{ \sum \left[  \theta_i - x_i \left[ 1 - \frac{p-2}{\sum_{i=1}^p x_i^2} \right] \right]^2 \right\} \\
+&=& E_{\bs{x}|\bs{\theta}} \left\{ \sum \left[  \theta_i - x_i  + \frac{p-2}{\sum_{i=1}^p x_i^2} x_i  \right]^2 \right\} \\
+&=& E_{\bs{x}|\bs{\theta}} \left\{ \sum \left[x_i - \theta_i  - \frac{p-2}{\sum_{i=1}^p x_i^2} x_i  \right]^2 \right\} \\
+&=& E_{\bs{x}|\bs{\theta}} \left\{ \sum \left[ (x_i - \theta_i)^2  - 2 (x_i - \theta_i) \frac{p-2}{\sum_{i=1}^p x_i^2} x_i + \left(\frac{p-2}{\sum_{i=1}^p x_i^2} x_i\right)^2  \right] \right\} \\
+&=& E_{\bs{x}|\bs{\theta}} \left\{ \sum (x_i - \theta_i)^2  - 2 (p-2) \sum  \frac{(x_i - \theta_i)x_i}{\sum_{i=1}^p x_i^2} +
+(p-2)^2\sum \left(\frac{x_i}{\sum_{i=1}^p x_i^2} \right)^2  \right\} \\
+\end{eqnarray*}
+```
+## 
+
+\scriptsize
+
+```{=tex}
+\begin{eqnarray*}
+R(\bs{\theta}, \bs{\delta}) &=& E_{\bs{x}|\bs{\theta}} \left\{ \sum (x_i - \theta_i)^2  - 2 (p-2) \sum  \frac{(x_i - \theta_i)x_i}{\sum_{i=1}^p x_i^2} + (p-2)^2\sum \left(\frac{x_i}{\sum_{i=1}^p x_i^2} \right)^2  \right\} \\
+&=& E_{\bs{x}|\bs{\theta}} \left\{ \sum (x_i - \theta_i)^2  - 2 (p-2)   \frac{\sum(x_i - \theta_i)x_i}{\sum_{i=1}^p x_i^2} + (p-2)^2 \left(\frac{1}{\sum_{i=1}^p x_i^2} \right)  \right\} \\
+&=& p - 2(p-2) E_{\bs{x}|\bs{\theta}} \left\{  \frac{\sum  (x_i - \theta_i)x_i}{\sum_{i=1}^p x_i^2} \right\} + (p-2)^2 E_{\bs{x}|\bs{\theta}} \left\{ \frac{1}{\sum_{i=1}^p x_i^2} \right\} \\
+&=& p - 2(p-2) E_{\bs{x}|\bs{\theta}} \left\{ 1 - \frac{\sum  x_i\theta_i}{\sum_{i=1}^p x_i^2} \right\} + (p-2)^2 E_{\bs{x}|\bs{\theta}} \left\{ \frac{1}{\sum_{i=1}^p x_i^2} \right\} \\
+&=& p - 2(p-2)\left[ 1 - E_{\bs{x}|\bs{\theta}} \left\{\frac{\sum  x_i\theta_i}{\sum_{i=1}^p x_i^2} \right\} \right] + (p-2)^2 E_{\bs{x}|\bs{\theta}} \left\{ \frac{1}{\sum_{i=1}^p x_i^2} \right\}  \\
+&=& p - 2(p-2)\left[ 1 - E_{\bs{y}|\bs{\theta}} \left\{\frac{2 y}{p-2+2y} \right\} \right] + (p-2)^2 E_{\bs{y}|\bs{\theta}} \left\{ \frac{1}{p-2+2y} \right\}  \\
+&=& p - 2(p-2)\left[ E_{\bs{y}|\bs{\theta}} \left\{\frac{p-2+2y}{p-2+2y} \right\} - E_{\bs{y}|\bs{\theta}} \left\{ \frac{2 y}{p-2+2y} \right\} \right] +  \\
+&& (p-2)^2 E_{\bs{y}|\bs{\theta}} \left\{ \frac{1}{p-2+2y} \right\}  \\
+\end{eqnarray*}
+```
+## 
+
+\footnotesize
+
+```{=tex}
+\begin{eqnarray*}
+R(\bs{\theta}, \bs{\delta}) &=& p - 2(p-2)\left[ E_{\bs{y}|\bs{\theta}} \left\{\frac{p-2+2y}{p-2+2y} \right\} - E_{\bs{y}|\bs{\theta}} \left\{ \frac{2 y}{p-2+2y} \right\} \right] +  \\
+&& (p-2)^2 E_{\bs{y}|\bs{\theta}} \left\{ \frac{1}{p-2+2y} \right\}  \\
+&=& p - 2\left[ E_{\bs{y}|\bs{\theta}} \left\{\frac{(p-2) (p-2+2y)}{p-2+2y} \right\} - E_{\bs{y}|\bs{\theta}} \left\{ \frac{(p-2) 2 y}{p-2+2y} \right\} \right] +  \\
+&& (p-2)^2 E_{\bs{y}|\bs{\theta}} \left\{ \frac{1}{p-2+2y} \right\}  \\
+&=& p - 2\left[ E_{\bs{y}|\bs{\theta}} \left\{ \frac{(p-2) (p-2+2y) - (p-2) 2 y}{p-2+2y} \right\} \right]+  E_{\bs{y}|\bs{\theta}} \left\{ \frac{(p-2)^2}{p-2+2y} \right\}  \\
+&=& p - 2\left[ E_{\bs{y}|\bs{\theta}} \left\{ \frac{(p-2)^2}{p-2+2y} \right\} \right]+  E_{\bs{y}|\bs{\theta}} \left\{ \frac{(p-2)^2}{p-2+2y} \right\}  \\
+&=& p - E_{\bs{y}|\bs{\theta}} \left\{ \frac{(p-2)^2}{p-2+2y} \right\} \  < \ p \\
+\end{eqnarray*}
+```
+-   Recall $p \geq 3$.
+
+## 
+
+-   The James-Stein estimator is derived from a Bayesian approach. We note from Parmigiani and Inoue, that Robert (1994) states:
+
+```{=tex}
+\tb{One of the major impacts of the Stein paradox is to signify the end of a “Golden Age” for classical Statistics, since
+it shows that the quest for the best estimator, i.e., the unique minimax admissible estimator, is hopeless, unless one restricts the class of estimators to be considered or incorporates some prior information. [. . . ] its main consequences has been to reinforce the Bayesian–frequentist interface, by inducing frequentists to call for Bayesian techniques and Bayesians to robustify their estimators in terms of frequentist performances and prior uncertainty.}
+```

@@ -1,0 +1,60 @@
+#flood prob
+library(xgboost) # for xgboost
+library(tidyverse)
+data<-read.csv("playground-series-s4e5/train.csv")
+names(data)
+data_x <- data %>%
+  select_if(is.numeric) %>%
+  select(-id) %>%
+  select(-FloodProbability)
+head(data_x)
+
+data_y <- data %>%
+  select_if(is.numeric) %>%
+  select(FloodProbability)
+head(data_y)
+mx<-data.matrix(data_x)
+set.seed(45)
+data_y<-rbinom(length(my),1,my)
+
+numOfTrain <- round(length(data_y) * 0.7)
+train_x <- mx[1:numOfTrain, ]
+train_y <- data_y[1:numOfTrain]
+test_x <- mx[(numOfTrain + 1):length(data_y), ]
+test_y <- data_y[(numOfTrain + 1):length(data_y)]
+
+dtrain <- xgb.DMatrix(data = train_x, label = train_y)
+dtest <- xgb.DMatrix(data = test_x, label = test_y)
+zc<- sum(train_y==0)
+oc<- sum(train_y==1)
+# 1-0 obj
+zobj<-function(preds, value) {
+  
+}
+
+# model <- xgboost(data = dtrain, nround = 10, objective = zobj)
+
+linex <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  
+  # Calculate z = ψ(a - Y)
+  psi <- -10  # You can set ψ to any value in (-∞, ∞)
+  z <- psi * (preds - labels)
+  
+  # Calculate the gradient and hessian
+  grad <- psi*(exp(z) - 1)
+  hess <- (psi^2)*exp(z)
+  
+  return(list(grad = grad, hess = hess))
+}
+
+# Train the model
+model <- xgboost(data = dtrain, nround = 10, objective = linex)
+
+# Make predictions
+pred <- predict(model, dtest)
+
+# Calculate and print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_y)
+print(paste("test-error=", err))
+

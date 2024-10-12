@@ -1,0 +1,192 @@
+
+
+#Problem 1
+y1 <- read.table("school1.dat", header = F)
+y2 <- read.table("school2.dat", header = F)
+y3 <- read.table("school3.dat", header = F)
+y1<-y1[,1]
+y2<-y2[,1]
+y3<-y3[,1]
+ mu0 <- 5
+ k0 <- 1
+ s20 <- 4
+ nu0 <- 2
+ n1 <- length(y1)
+ ybar1 <- mean(y1)
+ s21 <- var(y1)
+ n2 <- length(y2)
+ ybar2 <- mean(y2)
+ s22 <- var(y2)
+ n3 <- length(y3)
+ ybar3 <- mean(y3)
+ s23 <- var(y3)
+ 
+ #School 1 Quantities
+  kn1 <- k0 + n1
+ nun1 <- nu0 + n1
+ mun1 <- (k0 * mu0 + n1 * ybar1)/kn1
+ s2n1 <- (nu0 * s20 + (n1 - 1) * s21 + k0 * n1 * (ybar1 -  mu0)^2/(kn1))/(nun1)
+ 
+ #School 2 Quantities 
+  kn2 <- k0 + n2
+ nun2 <- nu0 + n2
+ mun2 <- (k0 * mu0 + n2 * ybar2)/kn2
+s2n2 <- (nu0 * s20 + (n2 - 1) * s22 + k0 * n2 * (ybar2 - mu0)^2/(kn2))/(nun2)
+
+#School 3 Quantities
+ kn3 <- k0 + n3
+ nun3 <- nu0 + n3
+ mun3 <- (k0 * mu0 + n3 * ybar3)/kn3
+ s2n3 <- (nu0 * s20 + (n3 - 1) * s23 + k0 * n3 * (ybar3 -  mu0)^2/(kn3))/(nun3)
+
+#a)
+ S <- 10000
+ #School 1 Monte Carlo Sampling 
+
+s2.postsample1 <- 1/rgamma(S, (nu0 + n1)/2, s2n1 * (nu0 + n1)/2)
+theta.postsample1 <- rnorm(S, mun1, sqrt(s2.postsample1/(k0 + n1)))
+
+ #School 2 Monte Carlo Sampling 
+ s2.postsample2 <- 1/rgamma(S, (nu0 + n2)/2, s2n2 * (nu0 + n2)/2)
+ theta.postsample2 <- rnorm(S, mun2, sqrt(s2.postsample2/(k0 + n2)))
+
+ #School 3 Monte Carlo Sampling 
+  s2.postsample3 <- 1/rgamma(S, (nu0 + n3)/2, s2n1 * (nu0 + n1)/2)
+theta.postsample3 <- rnorm(S, mun3, sqrt(s2.postsample3/(k0 + n3)))
+
+#School 1 posterior summaries
+mean(theta.postsample1)
+quantile(theta.postsample1, c(0.025, 0.975))
+mean(sqrt(s2.postsample1))
+quantile(sqrt(s2.postsample1), c(0.025, 0.975))
+
+#School 2 posterior summaries
+mean(theta.postsample2)
+quantile(theta.postsample2, c(0.025, 0.975))
+mean(sqrt(s2.postsample2))
+quantile(sqrt(s2.postsample2), c(0.025, 0.975))
+
+#School 3 posterior summaries
+mean(theta.postsample3)
+quantile(theta.postsample3, c(0.025, 0.975))
+mean(sqrt(s2.postsample3))
+quantile(sqrt(s2.postsample3), c(0.025, 0.975))
+
+#b)
+
+mean(theta.postsample1 < theta.postsample2 & theta.postsample2 < theta.postsample3)
+mean(theta.postsample1 < theta.postsample3 & theta.postsample3 < theta.postsample2)
+mean(theta.postsample2 < theta.postsample1 & theta.postsample1< theta.postsample3)
+mean(theta.postsample2 < theta.postsample3 & theta.postsample3< theta.postsample1)
+mean(theta.postsample3 < theta.postsample1 & theta.postsample1< theta.postsample2)
+mean(theta.postsample3 < theta.postsample2 & theta.postsample2< theta.postsample1)
+
+
+#c)
+y1.pred<-rnorm(S,theta.postsample1,sqrt(s2.postsample1))
+y2.pred<-rnorm(S,theta.postsample2,sqrt(s2.postsample2))
+y3.pred<-rnorm(S,theta.postsample3,sqrt(s2.postsample3))
+
+
+mean(y1.pred < y2.pred & y2.pred < y3.pred)
+mean(y1.pred < y3.pred & y3.pred < y2.pred)
+mean(y2.pred < y1.pred & y1.pred < y3.pred)
+mean(y2.pred < y3.pred & y3.pred < y1.pred)
+mean(y3.pred < y1.pred & y1.pred < y2.pred)
+mean(y3.pred < y2.pred & y2.pred < y1.pred)
+
+
+#d)
+mean(theta.postsample1 > theta.postsample2 & theta.postsample1 > theta.postsample3)
+mean(y1.pred > y2.pred & y1.pred > y3.pred)
+
+#or
+theta.pr <- rep(0, S)
+ Y.pr <- rep(0, S)
+ for (i in 1:S) {
+     theta.max.i <- max(theta.postsample2[i], theta.postsample3[i])
+     theta.pr[i] <- 1 * (theta.postsample1[i] > theta.max.i)
+     Y.max.i <- max(y2.pred[i], y3.pred[i])
+     Y.pr[i] <- 1 * (y1.pred[i] > Y.max.i)
+ }
+ mean(theta.pr)
+mean(Y.pr)
+
+#Problem 2
+mu0 <- 75
+ k0 <- c(1,2,4,8,16,32)
+ nu0<-c(1,2,4,8,16,32)
+ s20 <- 100
+
+ n1 <- 16
+ybar1<-75.2
+s21<-7.3^2
+ n2 <- 16
+ ybar2 <-77.5
+ s22 <- 8.1^2
+
+ S<-10000
+ result<-matrix(0,6,6)
+ for (i in 1:6){
+    for ( j in 1:6){
+ #Group A
+  kn1 <- k0[i] + n1
+ nun1 <- nu0[j] + n1
+ mun1 <- (k0[i] * mu0 + n1 * ybar1)/kn1
+ s2n1 <- (nu0[j] * s20 + (n1 - 1) * s21 + k0[i] * n1 * (ybar1 -  mu0)^2/(kn1))/(nun1)
+ s2.postsample1 <- 1/rgamma(S, (nu0[j] + n1)/2, s2n1 * (nu0[j] + n1)/2)
+theta.postsample1 <- rnorm(S, mun1, sqrt(s2.postsample1/(k0[i] + n1)))
+
+ #Group B
+   kn2 <- k0[i] + n2
+ nun2 <- nu0[j] + n2
+ mun2 <- (k0[i] * mu0 + n2 * ybar2)/kn2
+s2n2 <- (nu0[j] * s20 + (n2 - 1) * s22 + k0[i] * n2 * (ybar2 - mu0)^2/(kn2))/(nun2)
+ s2.postsample2 <- 1/rgamma(S, (nu0[j] + n2)/2, s2n2 * (nu0[j] + n2)/2)
+ theta.postsample2 <- rnorm(S, mun2, sqrt(s2.postsample2/(k0[i] + n2)))
+ 
+ result[i,j]<-mean(theta.postsample1<theta.postsample2)
+ }
+}
+result
+pdf("HW_Fig2.pdf")
+par(mfrow=c(1,1))
+par(mar=c(5,4,4,4))
+contour(k0, nu0, result, main = expression(Pr(theta[a]<theta[b])),  xlab = "k0", ylab = "nu0",cex.axis=1.5,cex.main=2,cex.lab=2,labcex=2)
+dev.off()
+
+
+#Problem 3
+library("MCMCpack")
+#Data
+n1<-639; n2<-639
+x1<-294
+x2<-288
+y1<-308
+y2<-332
+z1<-38
+z2<-19
+
+
+#Prior - uninformative Dirichlet prior
+#Posterior after pre-debate survey
+theta.post1<-rdirichlet(10000,c(1+x1,1+y1,1+z1))
+
+alpha1<-theta.post1[,1]/(theta.post1[,1]+theta.post1[,2])
+
+#Posterior after post-debate survey
+#Posterior after pre-debate survey is new prior
+
+theta.post2<-rdirichlet(10000,c(1+x1+x2,1+y1+y2,1+z1+z2))
+
+alpha2<-theta.post2[,1]/(theta.post2[,1]+theta.post2[,2])
+
+#Histogram of posterior density alpha2-alpha1
+pdf("HW_Fig3.pdf")
+hist(alpha2-alpha1,main="",xlab=expression(alpha[2]-alpha[1]))
+dev.off()
+
+#Posterior probability of shift towards candidate X
+mean(alpha2>alpha1)
+
+

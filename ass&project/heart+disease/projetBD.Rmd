@@ -1,0 +1,401 @@
+---
+title: "Project(BD)"
+author: "Mike"
+date: "2023-10-31"
+output: pdf_document
+---
+
+
+
+```{r include=FALSE}
+library(MASS)
+library(mvtnorm)
+# install.packages("truncnorm")
+library(truncnorm)
+```
+
+```{r include=FALSE}
+# trp<- 0.8
+# nd=nrow(xx)
+# ntr<-round(trp*nd)
+# nte<-nd-ntr
+# tr_ind<- sample(1:nd,ntr,replac=FALSE)
+# x_tr<-xx[tr_ind,]
+# x_te<-xx[-tr_ind,]
+
+```
+
+```{r include=FALSE}
+#predict funtion to predict value of catergory regression and ordnial regression
+my_pred<-function(x,beta_i=NULL,beta,ord=T){
+  if(ord==T){
+    x=x
+    nd=nrow(x)
+    nl=length(beta_i)
+    if(length(beta)==ncol(x)){
+      # print(matrix(beta))
+      # print(x)
+      lin<-x%*%matrix(beta)
+      Pc<-rep(1,nd)
+      for(j in nl:1){
+        Pc<-cbind(ilogit(-lin+beta_i[j]),Pc)
+      }
+      P<-t(diff(t(cbind(rep(0,nd),Pc))))
+      # print(P)
+      return(max.col(P))
+    }
+    else{
+      print("error: length(beta)!=ncol(x)")
+    }
+  }
+  else{
+    nd=nrow(x)
+    x<-cbind(rep(1,nd),x)
+    nc=ncol(x)
+    nl=nrow(beta)
+    ncc=ncol(beta)
+    if(is.null(nl)){nl=length(beta)}
+    if(nc==nl){
+      p<-ilogit(x%*%beta)
+      if(is.null(ncc)){ncc=1}
+      P<-cbind(rep(1,nd)-p%*%matrix(rep(1,ncc)),p)
+      # print(P)
+      return(max.col(P))
+    }
+    else{
+      print("check beta,x size")
+    }
+  }
+}
+```
+
+```{r include=FALSE}
+#data processiong
+d <- read.table("data.txt", header = TRUE,stringsAsFactors = TRUE)
+xx<-d
+xx$chest_pain_type<-factor(xx$chest_pain_type,levels = c('angina', 'abnang', 'notang', 'asympt'))
+xx$resting_ecg<-factor(xx$resting_ecg,levels = c('norm', 'abn', 'hyp'))
+xx$slope<-factor(xx$slope,levels=c('up', 'flat', 'down'))
+xx$thal<-factor(xx$thal,levels = c('norm', 'fix', 'rev'))
+xx$number_of_vessels_colored<-factor(xx$number_of_vessels_colored,levels=c('0.0','1.0','2.0','3.0'))
+# xx[!complete.cases(xx),]
+xx<- na.omit(xx)
+categorical_xx<-xx[,sapply(xx,is.factor)]
+numeric_xx<- xx[,sapply(xx,is.numeric)]
+std_xx<-cbind(categorical_xx,scale(numeric_xx))[,as.array(names(xx))]
+
+# xx[is.na(xx)]
+yl<-xx[,14]
+# length(y)
+x<-std_xx[,1:13]
+p<- ncol(x)
+p_y<-length(levels(yl))-1
+n<- nrow(std_xx)
+# as.numeric(xx[,14])
+
+```
+
+```{r include=FALSE}
+#glm fitted result
+x<-data.frame(lapply(x,as.numeric))
+model=glm(formula = yl ~ Age + sex + chest_pain_type + Trestbps + cholesteral + fasting_blood_sugar + resting_ecg + max_heart_rate + exercise_induced_angina + oldpeak + slope + number_of_vessels_colored + thal,data=x,family = binomial(link=logit))
+# summary(model)
+
+```
+
+```{r include=FALSE}
+ilogit<-function(theta){
+  out<-exp(theta)/(1+exp(theta))
+  return(out)
+}
+
+yl<-as.numeric(yl)-1
+# max.col(model2$fitted.values)
+# mean(max.col(model2$fitted.values)==y)
+```
+
+```{r include=FALSE}
+##logsitic regression model selection
+set.seed(100)
+x<-as.matrix(x)
+beta.pm<-rep(0,p+1)
+nuhp<-0.5
+beta.psd<-c(4,rep(2,p))*nuhp
+gamma<- rbinom(p,1,0.5)
+beta<- rep(0,p+1)#summary.coe[,1]
+beta.var<-summary(model)$cov.unscaled
+S2<- 10000*5
+Beta<-P<-NULL
+Gamma<-NULL
+nu<-0.08
+accl<- NULL
+#updating process
+for(i in 1:S2){
+    for(j in 1:(p)) {
+        new_gamma<- gamma
+        new_gamma[j]<- 1-gamma[j]
+        p0<-ilogit(x %*% (matrix(beta[-1]*gamma))+beta[1])
+        p1<-ilogit(x %*% (matrix(beta[-1]*new_gamma))+beta[1])
+        logp <- sum((dbinom(yl,1,p1,log=T)-dbinom(yl,1,p0,log=T)))
+        pj<-rbinom(1,1,ilogit(logp))
+        gamma[j]<- pj*new_gamma[j]+(1-pj)*gamma[j]
+        }
+    new_beta<- rmvnorm(1,beta,nu*beta.var)
+    # print(new_beta)
+    # print(gamma)
+    p0<-ilogit(x %*% matrix(beta[-1]*gamma)+beta[1])
+    p1<-ilogit(x %*% matrix(new_beta[-1]*gamma)+new_beta[1])
+    # print(p0)
+    # print(p1)
+    # jbeta<-dmvnorm(beta,new_beta,nu*beta.var,log=T)
+    # new_jbeta<- dmvnorm(new_beta,beta,nu*beta.var,log=T)
+    logp <- sum(dbinom(yl,1,p1,log=T)-dbinom(yl,1,p0,log=T))+sum((dnorm(new_beta,beta.pm,beta.psd,log=T)-dnorm(beta,beta.pm,beta.psd,log=T))*c(1,gamma))#-new_jbeta+jbeta
+    if(log(runif(1))<logp){
+        beta<-new_beta*c(1,gamma)+beta*c(0,1-gamma)
+        accl <- c(accl,1)
+    }
+    else{
+        accl<-c(accl,0)
+    }
+    Beta<-rbind(Beta,beta)
+    Gamma<-rbind(Gamma,gamma)
+}
+```
+
+```{r include=FALSE}
+# accepted rate
+mean(accl[5000:S2])
+apply(Gamma[5000:S2,],2,mean)
+apply(Beta[5000:S2,],2,mean)
+apply(cbind(Beta[,1],Beta[,-1]*Gamma)[5000:S2,],2,mean)
+# summary(model)
+```
+```{r include=FALSE}
+for(i in 1:13){
+ print(quantile(Beta[5000:S2,i],c(0.05,0.95) ))
+}
+
+```
+
+
+```{r include=FALSE}
+# coefficient plot
+par(mfrow=c(2,2))
+for(i in 1:p){
+  acf(Beta[seq(1,S2,20),i], )
+    plot(Beta[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+    plot(Gamma[,i]*Beta[,i+1],ylab=bquote(gamma[.(i)]*beta[.(i)]),xlab='iteration')
+    plot(Gamma[,i],ylab=bquote(gamma[.(i)]),xlab='iteration')
+}
+y_h<-my_pred(as.matrix(x),beta=apply(cbind(Beta[,1],Beta[,-1]*Gamma)[5000:S2,],2,mean),ord=F)
+y_hh<-my_pred(as.matrix(x),beta=model$coefficients,ord=F)
+mean(y_h==as.numeric(xx[,14]))
+mean(y_hh==as.numeric(xx[,14]))
+```
+```{r}
+
+```
+
+
+```{r include=FALSE}
+# ordinal part
+
+d <- read.table("data.txt", header = TRUE,stringsAsFactors = TRUE)
+xx<-d
+xx$chest_pain_type<-factor(xx$chest_pain_type,levels = c('angina', 'abnang', 'notang', 'asympt'))
+xx$resting_ecg<-factor(xx$resting_ecg,levels = c('norm', 'abn', 'hyp'))
+xx$slope<-factor(xx$slope,levels=c('up', 'flat', 'down'))
+xx$thal<-factor(xx$thal,levels = c('norm', 'fix', 'rev'))
+xx$number_of_vessels_colored<-factor(xx$number_of_vessels_colored,levels=c('0.0','1.0','2.0','3.0'))
+# xx[!complete.cases(xx),]
+# xx[,]
+xx<- na.omit(xx)
+categorical_xx<-xx[,sapply(xx,is.factor)]
+numeric_xx<- xx[,sapply(xx,is.numeric)]
+std_xx<-cbind(categorical_xx,scale(numeric_xx))[,as.array(names(xx))]
+# xx[is.na(xx)]
+y<-xx[,15]
+x<-std_xx[,1:13]
+p<- ncol(x)
+p_y<-length(levels(y))-1
+n<- nrow(std_xx)
+
+```
+
+
+
+
+
+```{r include=FALSE}
+x<-data.frame(lapply(x,as.numeric))
+model1=polr(formula = y ~ Age + sex + chest_pain_type + Trestbps + cholesteral + fasting_blood_sugar + resting_ecg + max_heart_rate + exercise_induced_angina + oldpeak + slope + number_of_vessels_colored + thal, data=xx, method='logistic')
+model2=polr(formula = y ~ Age + sex + chest_pain_type + Trestbps + cholesteral + fasting_blood_sugar + resting_ecg + max_heart_rate + exercise_induced_angina + oldpeak + slope + number_of_vessels_colored + thal,data=x,method='logistic')
+beta.var<-cov(x)
+# summary(model1)
+# summary(model2)
+```
+
+
+
+```{r include=FALSE}
+y<- as.numeric(y)
+set.seed(102)
+S<- 1000*50
+nuhp<-5
+beta.pm<-rep(0,p)
+beta.psd<- nuhp*rep(2,p)
+gamma<- rbinom(p,1,0.5)
+beta<- mvrnorm(1,beta.pm,beta.var)
+beta_int.pm<- rep(0,p_y)
+beta_int.psd<-nuhp*rep(4,p_y)
+beta_int<- rnorm(1,0,4)
+# print(beta_int)
+for(i in 2:p_y){beta_int<- c(beta_int,rtruncnorm(1,a=beta_int[i-1],mean=0,sd=4))}
+new_beta_int<- beta_int
+Beta<- P<-NULL
+Beta_int<- NULL
+Gamma<-NULL
+nu<-0.01
+nue<-5
+acc<- acc_i<- NULL
+x<-as.matrix(x)
+for(i in 1:S){
+    for(j in 1:p) {
+        new_gamma<- gamma
+        new_gamma[j]<- 1-gamma[j]
+        pp0<-x %*% matrix(-beta*gamma)
+        pp1<-x %*% matrix(-beta*new_gamma)
+        p0 <- p1<- matrix(0,nrow=n)
+        for(i in 1:p_y){
+            ys<-ifelse(y<i,1,0)
+            yb<-1-ys
+            p0<- p0*(ys-yb)+ilogit(pp0+beta_int[i])*yb
+            p1<- p1*(ys-yb)+ilogit(pp1+beta_int[i])*yb
+        }
+        ys<-ifelse(y==5,1,0)
+        p0<-(1-p0)*ys+p0*(1-ys)
+        p1<- (1-p1)*ys+p1*(1-ys)
+        # print(cbind(p0,p1)[index])
+        logp <- sum(log(p1)-log(p0))
+        # print(logp)
+        pj<-rbinom(1,1,ilogit(logp))
+        gamma[j]<- pj*new_gamma[j]+(1-pj)*gamma[j]
+        }
+    new_beta<- rmvnorm(1,beta,nu*beta.var)
+    
+    pp0<-x %*% matrix(-beta*gamma)
+    pp1<-x %*% matrix(-new_beta*gamma)
+    p0<- p1<- matrix(0,nrow=n)
+    for(i in 1:p_y){
+        ys<-ifelse(y<i,1,0)
+        yb<-1-ys
+        p0<- p0*(ys-yb)+ilogit(pp0+beta_int[i])*yb
+        p1<- p1*(ys-yb)+ilogit(pp1+beta_int[i])*yb
+    }
+    ys<-ifelse(y==5,1,0)
+    p0<-(1-p0)*ys+p0*(1-ys)
+    p1<- (1-p1)*ys+p1*(1-ys)
+    # print(p1)
+    logp <- sum(log(p1)-log(p0))+sum((dnorm(new_beta,beta.pm,beta.psd,log=T)-dnorm(beta,beta.pm,beta.psd,log=T))*gamma)
+    # logp <- sum(dbinom(y,1,p1,log=T)-dbinom(y,1,p0,log=T))+sum((dnorm(new_beta,beta.pm,beta.psd,log=T)-dnorm(beta,beta.pm,beta.psd,log=T))*c(1,gamma))#-new_jbeta+jbeta
+    if(log(runif(1)) < logp){
+        beta<-new_beta*(gamma)+beta*(1-gamma)
+        acc <- c(acc,1)
+    }
+    else{
+        acc<-c(acc,0)
+    }
+    a0<- -Inf
+    b0<- c(beta_int[-1],Inf)
+    for(i in 1:p_y){
+        # print(paste('a0:',a0))
+        # print(b0[i])
+        new_beta_int[i]<- rtruncnorm(1,a=a0,b=b0[i],mean=beta_int[i],sd=nue*4)
+        # print(new_beta_int)
+        # print(beta_int)
+        pp0<-x %*% matrix(-beta*gamma)
+        pp1<-x %*% matrix(-beta*gamma)
+        p0<- p1<- matrix(0,nrow=n)
+        for(j in 1:p_y){
+            ys<-ifelse(y<j,1,0)
+            yb<-1-ys
+            p0<- p0*(ys-yb)+ilogit(pp0+beta_int[j])*yb
+            p1<- p1*(ys-yb)+ilogit(pp1+new_beta_int[j])*yb
+        }
+        ys<-ifelse(y==5,1,0)
+        p0<-(1-p0)*ys+p0*(1-ys)
+        p1<- (1-p1)*ys+p1*(1-ys)
+        # print(p1)
+        logp <- sum(log(p1)-log(p0))+sum(log(dtruncnorm(x=new_beta_int,a=c(-Inf,c(new_beta_int[-p_y])),mean=beta_int.pm,sd=beta.psd))-log(dtruncnorm(x=beta_int,a=c(-Inf,c(beta_int[-p_y])),mean=beta_int.pm,sd=beta.psd)))
+        # print(logp)
+        if(log(runif(1))<logp){
+            beta_int[i]<- new_beta_int[i]
+            acc_i <- c(acc_i,1)
+        }
+        else{
+            new_beta_int[i] <- beta_int[i]
+            acc_i<-c(acc_i,0)
+        }
+        a0<- beta_int[i]
+    }
+    
+    Beta<-rbind(Beta,beta)
+    Gamma<-rbind(Gamma,gamma)
+    Beta_int<-rbind(Beta_int,beta_int)
+}
+print(beta_int)
+mean(acc)
+mean(acc_i)
+apply(Gamma,2,mean)
+
+# par(bg='white',mfrow=c(3,1))
+# for(i in 1:p_y){
+#     plot(Beta_int[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+
+# }
+# for(i in 1:p){
+#     plot(Beta[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+#     plot(Gamma[,i]*Beta[,i],ylab=bquote(gamma[.(i)]*beta[.(i)]),xlab='iteration')
+#     plot(Gamma[,i],ylab=bquote(gamma[.(i)]),xlab='iteration')
+# }
+
+```
+
+```{r include=FALSE}
+apply(Gamma[5000:S,],2,mean)
+apply(Beta_int[5000:S,],2,mean)
+apply(Beta[5000:S,],2,mean)
+apply(Beta[5000:S,]*Gamma[5000:S,],2,mean)
+```
+
+```{r include=FALSE}
+for(i in 1:13){
+ print(quantile(Beta[5000:S,i],c(0.05,0.95) ))
+}
+
+```
+
+```{r include=FALSE}
+# length(apply(Beta*Gamma,2,mean))
+y_odh<-my_pred(as.matrix(x),apply(Beta_int[5000:S2,],2,mean),apply(Beta[5000:S2,]*Gamma[5000:S,],2,mean))
+y_od<-my_pred(as.matrix(x),model2$zeta,model2$coefficients)
+mean(y_od==as.numeric(xx[,14]))
+mean(y_odh==as.numeric(xx[,14]))
+```
+
+
+```{r echo=FALSE}
+par(bg='white',mfrow=c(2,2))
+for(i in 1:p_y){
+    acf(Beta_int[seq(1,S,20),i], )
+    plot(Beta_int[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+}
+par(mfrow=c(2,2))
+for(i in 1:p){
+  acf(Beta[seq(1,S,20),i], )
+    plot(Beta[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+    plot(Gamma[,i]*Beta[,i],ylab=bquote(gamma[.(i)]*beta[.(i)]),xlab='iteration')
+    plot(Gamma[,i],ylab=bquote(gamma[.(i)]),xlab='iteration')
+}
+```
+

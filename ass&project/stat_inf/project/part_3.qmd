@@ -1,0 +1,371 @@
+---
+title: "Part 2 Model and application"
+author: "Mike"
+format: beamer
+editor: visual
+jupyter: ir
+editor_options: 
+  chunk_output_type: inline
+---
+
+## Basic idea
+
+Applications of different loss functions in making decisions under BHM , especially in spatio-temporal related process eg. decisions or predictions on floods in environmental science.
+
+-   Prediction is a decision
+
+-   Prediction of multivariate spatio-temporal processes
+
+-   Loss functions based on displacement
+
+-   Other classes of loss functions
+
+## Prediction is a decision
+
+Consider BHM model on sequence $Y$ which is a latent random process , $(a_i)$ is a sequence of decisions and $L(a,y)$ is loss function. Therefore the risk function can be defined as follows
+
+$$
+R(a_i,y,z):=\int_{\mathcal{Y}}\int_{\mathcal{Z}}L(a,y)\ p(y,z)\ dz\ dy
+$$ And minimizing the risk function above which is equal to minimizing the following risk function according to lecture 10a
+
+$$
+R(a_i,y):=\int_{\mathcal{Y}}L(a,y)\ p(y|z)\ dy=E[L(a,Y)|z]
+$$
+
+And the best soluation $a_i$ is given by $\delta^*(z)$ which means it depends on data $z$. If the loss function depends on the function of $Y$ eg. $g(Y)$.The risk function is given by $$
+R(a_i,y):=E[L(a,g(Y)|z]
+$$
+
+## Predicion of multivariate spatio-temporal processes
+
+### Statistical model & estimation procedure
+
+The random latent process $Y$ may be multivariate spatio-temporal processes. $$
+\mathbf{Y}:=\{Y_i(\mathbf{s},t):\mathbf s \in D_s,t\in D_t,i=1,\dots,n\}
+$$
+
+Thus, there is a correlation matrix of $\mathbf Y$ noted as $\mathbf R$ which can be decomposed as follows $$
+\mathbf{R}=\mathbf{P}\Lambda\mathbf{P'}=\sum^{n}_{i=1}\lambda_i\mathbf P_i\mathbf P_i'
+$$ The above equation can be derived because $\mathbf R$ can be conducted by the noise of random process meanwhile the correlation matrix is usually positive-definite .
+
+## 
+
+It may looks like to view $\mathbf Y$ as Gaussian process. Therefore, consider a kind of general loss function as $$
+\mathcal{L}(a,\mathbf Y)=\sum_{i=1}^{n}L(\mathbf P_i'\mathbf a(s,t),\mathbf P_i'\mathbf Y(s,t))
+$$ Consider loss fucntion $||\mathbf P'\mathbf a-\mathbf P'\mathbf Y||_2$ The loss function turns out to be$$\mathbf {(a-Y)}'\mathbf P \mathbf P' \mathbf {(a-Y)}'= \sum_{i=1}^{n}(a_i-y_i)^2$$ which is ordinary square error function.
+
+## Extension on mvn mean estimation
+
+![](density.png){fig-align="center" width="600"}
+
+## 
+
+\$ optim(par=intp,fn=plos,data=mv_sample,N=N,method="L-BFGS-B")\$par
+
+\[1\] 10.007719467 0.008847759 -4.977106627 5.995543637 -20.005492237
+
+\$ optim(par=intp,fn=sqe,data=mv_sample,N=N,method="L-BFGS-B")\$par
+
+\[1\] 10.007719463 0.008847757 -4.977106624 5.995543640 -20.005492236
+
+\$ apply(mv_sample,2, mean)
+
+\[1\] 10.007719463 0.008847757 -4.977106623 5.995543639 -20.005492236
+
+## Loss function based on displacement :symmetric loss function
+
+$$
+L(a,y)=||a-y||_p
+$$ When $p=0,1,2$ ,loss function are represented as 0-1 loss , absolute-deviation loss and squared-error loss respectively.
+
+## Loss function based on displacement :asymmetric loss function
+
+$$
+L(a,y)=(a-y)[\mathbb I_{(0,\infty)}(a-y)-q];q\in(0,1)
+$$ <!-- The loss function above may be useful in predicting a river's crest-height at a time of heavy rainfall to decide how to react to a potential flood. -->
+
+### LINEX computation
+
+$$
+L(a,y)=exp\{\psi(a-y) \}-\psi(a-y)-1;\psi \in(-\infty,\infty)
+$$ The optimal predictor of $Y$: $$
+\delta^*=\frac{1}{\psi}\log(E[exp\{\psi y\}|z])
+$$
+
+### Potential function
+
+$$
+L(a,Y)=-\log(f(a-y;\omega))+\log(f(0;\omega)); \omega\in \Omega
+$$
+
+## Custome different loss function in Xgboost predicition on flood
+
+Data record of the monthly rainfall index of Kerela from 1900- 2018 while telling weather a flood took place that month or not and can be used to predict floods by observing the rainfall pattern. https://www.kaggle.com/datasets/mukulthakur177/kerela-flood
+
+## 
+
+### data structure
+
+![](rhead.png){fig-align="center" width="300"}
+
+### tuning parameter
+
+$q=0.1,h=0.1$
+
+$\psi=10$
+
+\[1\] "trian-error= 0"
+
+\[1\] "test-error= 0.0212765957446809"
+
+<!-- ## Loss function not based on displacement -->
+
+<!-- To gain property : $$ -->
+<!-- L_w(a,y)=w(y)L(a,y) -->
+<!-- $$ -->
+
+<!-- Consider following the risk function and the weigthed posterior -->
+
+<!-- \begin{align*} -->
+<!-- R:=\int w(y)&L(a,y)p(y|z)dy \propto \int L(a,y)p_w(y|z)dy . -->
+<!-- \\ -->
+<!-- & p_w(y|z)\propto w(y)p(y|z) -->
+<!-- \end{align*} <!-- need to be added --> 
+
+<!-- #code -->
+
+<!-- library(MASS) -->
+
+<!-- N <- 5   -->
+
+<!-- set.seed(42) -->
+
+<!-- mu <- c(10,0,-5,6,-20) -->
+
+<!-- n=10000 -->
+
+<!-- Sigma <- matrix(runif(N * N, -1, 1), nrow = N) -->
+
+<!-- Sigma <- Sigma %*% t(Sigma)   -->
+
+<!-- mv_sample <- mvrnorm(n = n, mu = mu, Sigma = Sigma) -->
+
+<!-- plot(density(mv_sample)) -->
+
+<!-- plos<-function(params,data,N){ -->
+
+<!--   q<-1 -->
+
+<!--   mu<-params[1:N] -->
+
+<!--   e<-eigen(cor(data)) -->
+
+<!--   p<-e$vectors -->
+
+<!--   pp<-eigen(Sigma)$vectors -->
+
+<!--   dis<- 0 -->
+
+<!--   for(i in 1:nrow(data)){ -->
+
+<!--     dis<-dis+sum((t(p)%*%(data[i,]-mu))^2) -->
+
+<!--   } -->
+
+<!--   dis/nrow(data)#+q*sum(mu^2) -->
+
+<!-- } -->
+
+<!-- sqe<-function(params,data,N){ -->
+
+<!--   q<-0 -->
+
+<!--   mu<-params[1:N] -->
+
+<!--   sum((data-t(matrix(mu,N,nrow(data))))^2)/nrow(data)+q*sum(mu^2) -->
+
+<!-- } -->
+
+<!-- intp<-c(1,0,0,0,0) -->
+
+<!-- optim(par=intp,fn=plos,data=mv_sample,N=N,method="L-BFGS-B")$par -->
+
+<!-- optim(par=intp,fn=sqe,data=mv_sample,N=N,method="L-BFGS-B")$par -->
+
+<!-- apply(mv_sample,2, mean) -->
+
+<!-- ```{R} -->
+
+<!-- library(xgboost) # for xgboost -->
+
+<!-- library(tidyverse) -->
+
+<!-- library(ggplot2) -->
+
+<!-- # Load the data -->
+
+<!-- data <- read.csv("kerala.csv") -->
+
+<!-- head(data) -->
+
+<!-- # Select numeric columns and exclude the 'YEAR' column -->
+
+<!-- data_x <- data %>% -->
+
+<!--   select_if(is.numeric) %>% -->
+
+<!--   select(- YEAR) -->
+
+<!-- head(data_x) -->
+
+<!-- # Convert the selected data to a numeric matrix -->
+
+<!-- mx <- data.matrix(data_x) -->
+
+<!-- # Convert the 'FLOODS' column to a binary numeric vector -->
+
+<!-- data_y <- ifelse(data$FLOODS == 'YES', 1, 0) -->
+
+<!-- head(data_y) -->
+
+<!-- data_combined <- cbind(data_x, FLOODS = data_y) -->
+
+<!-- # Calculate the correlation matrix -->
+
+<!-- correlation_matrix <- cor(data_combined) -->
+
+<!-- # Plot the correlation matrix -->
+
+<!-- ggcorr(correlation_matrix, -->
+
+<!--        label = TRUE, -->
+
+<!--        label_round = 2, -->
+
+<!--        label_size = 3, -->
+
+<!--        hjust = 0.75, -->
+
+<!--        size = 3, -->
+
+<!--        color = "grey50", -->
+
+<!--        layout.exp = 1, -->
+
+<!--        legend.position = "bottom") + -->
+
+<!--   ggtitle("Correlation Matrix between Features and Target Variable (FLOODS)") + -->
+
+<!--   theme_minimal() -->
+
+<!-- # Split data into training and testing sets -->
+
+<!-- set.seed(123)  # For reproducibility -->
+
+<!-- numOfTrain <- round(length(data_y) * 0.7) -->
+
+<!-- train_x <- mx[1:numOfTrain, ] -->
+
+<!-- train_y <- data_y[1:numOfTrain] -->
+
+<!-- test_x <- mx[(numOfTrain + 1):length(data_y), ] -->
+
+<!-- test_y <- data_y[(numOfTrain + 1):length(data_y)] -->
+
+<!-- # Create DMatrix for xgboost -->
+
+<!-- dtrain <- xgb.DMatrix(data = train_x, label = train_y) -->
+
+<!-- dtest <- xgb.DMatrix(data = test_x, label = test_y) -->
+
+<!-- # Train the model -->
+
+<!-- model <- xgboost(data = dtrain, nround = 2, objective = "binary:logistic") -->
+
+<!-- # Make predictions -->
+
+<!-- pred <- predict(model, dtest) -->
+
+<!-- # Calculate and print the classification error -->
+
+<!-- err <- mean(as.numeric(pred > 0.5) != test_y) -->
+
+<!-- print(paste("test-error=", err)) -->
+
+<!-- # Extract model parameters -->
+
+<!-- model_dump <- xgb.dump(model, with_stats = TRUE) -->
+
+<!-- cat(model_dump[1:10], sep = "\n") -->
+
+<!-- xgb.dump(model, with_stats = TRUE, fname = "xgboost_model_dump.txt") -->
+
+<!-- custom_objective <- function(preds, dtrain) { -->
+
+<!--   labels <- getinfo(dtrain, "label") -->
+
+<!--   q <- 0.1 -->
+
+<!--   a_minus_Y <- preds - labels -->
+
+<!--   indicator <- ifelse(a_minus_Y > 0, 1, 0) -->
+
+<!--   grad <- (indicator - q) -->
+
+<!--   hess <- rep(0.1, length(grad)) -->
+
+<!--   return(list(grad = grad, hess = hess)) -->
+
+<!-- } -->
+
+<!-- model <- xgboost(data = dtrain, -->
+
+<!--                  nround = 2, -->
+
+<!--                  objective = custom_objective) -->
+
+<!-- # Make predictions -->
+
+<!-- pred <- predict(model, dtest) -->
+
+<!-- # Calculate and print the classification error -->
+
+<!-- err <- mean(as.numeric(pred > 0.5) != test_y) -->
+
+<!-- print(paste("test-error=", err)) -->
+
+<!-- linex <- function(preds, dtrain) { -->
+
+<!--   labels <- getinfo(dtrain, "label") -->
+
+<!--   psi <- 10 -->
+
+<!--   z <- psi * (preds - labels) -->
+
+<!--   grad <- psi*(exp(z) - 1) -->
+
+<!--   hess <- (psi^2)*exp(z) -->
+
+<!--   return(list(grad = grad, hess = hess)) -->
+
+<!-- } -->
+
+<!-- # Train the model with the custom objective function -->
+
+<!-- model <- xgboost(data = dtrain, -->
+
+<!--                  nround = 2, -->
+
+<!--                  objective = linex, -->
+
+<!--                  eval_metric = "error") -->
+
+<!-- # Make predictions -->
+
+<!-- pred <- predict(model, dtest) -->
+
+<!-- err <- mean(as.numeric(pred > 0.5) != test_y) -->
+
+<!-- print(paste("test-error=", err)) -->
+
+<!-- ``` -->

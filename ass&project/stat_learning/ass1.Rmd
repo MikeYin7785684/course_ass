@@ -1,0 +1,105 @@
+---
+title: "ass1"
+author: "Mike"
+date: "2024-08-02"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Answer 1
+From the result below, we just need to select one principal component $PC1$ which achieve variance 0.9384 and its pca scores is shown below.
+```{r}
+data<-read.table('prostate 14.37.25.xls')
+train_data<-data[data$train==TRUE,]
+test_data<-data[data$train!="TRUE",]
+y_train<-train_data[,c(9)]
+y_test<-test_data[,c(9)]
+x_train<-train_data[,-c(9,10)]
+x_test<-test_data[,-c(9,10)]
+pca<-prcomp(x_train)
+summary(pca)
+partition<-c('\n --------------------partition','--------------------------',' \n ','\n')
+# cat(partition,"scores:")
+print(head(pca$x[,1]))#score
+# cat(partition,"loading:")
+print(pca$rotation)#loading
+cat(partition,"scores:")
+pca$x[,1]
+cat(partition,"loading:")
+pca$rotation[,1]
+```
+## Answer2
+It is a simple linear regression according to Answer 1.After applying the rotation(linear combination) got in Answer 1 to training data as well as the testing data ,we can get the estimated intercept as 2.452345, estimated slope as 0.018513 and testing MSE as 1.056794.
+```{r}
+x_pca<-pca$x[,1]
+model<-lm(y_train~ x_pca)
+summary(model)
+x_p<-as.matrix(x_test)%*%pca$rotation[,1] # under pca rotation transform test predictor
+y_p<-predict(model,data.frame(x_pca=x_p))
+mse<-mean((y_test-y_p)^2)
+cat(partition,"MSE")
+mse
+```
+## Answer 3
+Simply applying glmnet package to do ridge estimation and the lasso estimation. Nearly the best $\lambda$ is achieved by 0.09 and 0.0013 respectively.MSE is 0.4940807 and 0.5172441 respectively.
+```{r}
+library(glmnet)
+y_train<-as.matrix(y_train)
+x_train<-as.matrix(x_train)
+y_test<-as.matrix(y_test)
+x_test<-as.matrix(x_test)
+model_ridge<-glmnet(x_train,y_train,alpha = 0,nlambda = 120)
+model_lasso<-glmnet(x_train,y_train,alpha = 1)
+print(model_ridge)
+cat(partition,"ridge_coefficents:")
+coef(model_ridge,s=0.09)
+print(model_lasso)
+cat(partition,"lasso_coefficents:")
+coef(model_lasso,s=0.0013)
+mse_ridge<-mean((y_test-predict(model_ridge,x_test,s=0.09))^2)
+mse_lasso<-mean((y_test-predict(model_lasso,x_test,s=0.0013))^2)
+m1_ridge<-mean(abs(y_test-predict(model_ridge,x_test,s=0.09)))
+m1_lasso<-mean(abs(y_test-predict(model_lasso,x_test,s=0.0013)))
+cat(partition,"ridge_mse:")
+mse_ridge
+m1_ridge
+cat(partition,"lasso_mse:")
+mse_lasso
+m1_lasso
+```
+## Answer 4
+Clearly the ridge regression achieve the least mse and the both mse in Answer 3 is lower than mse in Answer 2. Intuitively,  we could consider the Answer 2 as a linear regression without regularization and it is not the OLS estimation thus have large mse while OLS emstimation of linear regression is one of the special cases of ridge regression model or the lasso regression with $\lambda=0$ thus must higher than the optimal case.
+
+However,why ridge perform better than lasso is hard to explain which I think is caused by randomness.
+
+## Answer 5
+According to the lecture note, under true model setup ,we could  derive the estimated variance by formula below
+$$
+\sigma^2(X^TX+\lambda n I)^{-1}(X^TX)(X^TX+\lambda nI)^{-1}
+$$
+where $X$ is the training covarites' matrix and $\sigma$ need to be further approximated by follows.(concern: since the bais is from training data and mse is from test data may occurring variance to be negative.)
+
+$$
+\sigma^2=Var(\hat\beta)=MSE-Bias^2(\hat\beta)\approx MSE_{test}-([n\lambda(X^TX+n\lambda I)\hat\beta]^{-1})^T[n\lambda(X^TX+n\lambda I)\hat\beta]^{-1}
+$$
+
+
+```{r}
+# any way to get the variance which is the sum of all variance of the estimated coefficients is according to the definition of mse which is contributed by both variance and bias.Thus using the bais formula( also need $\beta$ replacement ) and the mse of predicted to get the value(concern: since the bais is from training data and mse is from test data may occurring variance to be negative).
+
+n<-nrow(x_train)
+w<-solve(t(x_train)%*%(x_train)+0.09*n*diag(8))
+sigma_sq<-mse_ridge-t(n*0.09*w)%*%(n*0.09*w)
+cat(partition,"Sigma_squared:",'\n')
+sigma_sq
+cov_m<-w*t(x_train)%*%(x_train)*w*sigma_sq
+cat(partition,"Covariance matrix:",'\n')
+cov_m
+cat(partition,"Variance :","\n")
+diag(cov_m)
+sum(diag(cov_m))
+```
+

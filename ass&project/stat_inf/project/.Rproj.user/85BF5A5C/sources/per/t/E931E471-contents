@@ -1,0 +1,164 @@
+library(xgboost) # for xgboost
+library(tidyverse)
+library(ggplot2)
+
+
+
+# Load the data
+data <- read.csv("kerala.csv")
+head(data)
+
+# Select numeric columns and exclude the 'YEAR' column
+data_x <- data %>%
+  select_if(is.numeric) %>%
+  select(-'YEAR')
+head(data_x)
+
+# Convert the selected data to a numeric matrix
+mx <- data.matrix(data_x)
+
+# Convert the 'FLOODS' column to a binary numeric vector
+data_y <- ifelse(data$FLOODS == 'YES', 1, 0)
+head(data_y)
+data_combined <- cbind(data_x, FLOODS = data_y)
+# Calculate the correlation matrix
+correlation_matrix <- cor(data_combined)
+
+# Plot the correlation matrix
+ggcorr(correlation_matrix, 
+       label = TRUE, 
+       label_round = 2, 
+       label_size = 3, 
+       hjust = 0.75, 
+       size = 3, 
+       color = "grey50", 
+       layout.exp = 1, 
+       legend.position = "bottom") +
+  ggtitle("Correlation Matrix between Features and Target Variable (FLOODS)") +
+  theme_minimal()
+
+
+# Split data into training and testing sets
+set.seed(123)  # For reproducibility
+numOfTrain <- round(length(data_y) * 0.7)
+train_x <- mx[1:numOfTrain, ]
+train_y <- data_y[1:numOfTrain]
+test_x <- mx[(numOfTrain + 1):length(data_y), ]
+test_y <- data_y[(numOfTrain + 1):length(data_y)]
+
+# Create DMatrix for xgboost
+dtrain <- xgb.DMatrix(data = train_x, label = train_y)
+dtest <- xgb.DMatrix(data = test_x, label = test_y)
+
+# Train the model
+model <- xgboost(data = dtrain, nround = 2, objective = "binary:logistic")
+
+# Make predictions
+pred <- predict(model, dtest)
+
+# Calculate and print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_y)
+print(paste("test-error=", err))
+# Extract model parameters
+model_dump <- xgb.dump(model, with_stats = TRUE)
+
+cat(model_dump[1:10], sep = "\n")
+
+xgb.dump(model, with_stats = TRUE, fname = "xgboost_model_dump.txt")
+
+
+custom_objective <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  q <- 0.2  
+  a_minus_Y <- preds - labels
+  indicator <- ifelse(a_minus_Y > 0, 1, 0)
+  grad <- (indicator - q)
+  
+  hess <- rep(0.1, length(grad))  
+  
+  return(list(grad = grad, hess = hess))
+}
+
+
+model <- xgboost(data = dtrain, 
+                 nround = 2, 
+                 objective = custom_objective)
+
+# Make predictions
+pred <- predict(model, dtest)
+
+# Calculate and print the classification error
+err <- mean(as.numeric(pred > 0.5) != test_y)
+print(paste("test-error=", err))
+
+linex <- function(preds, dtrain) {
+  labels <- getinfo(dtrain, "label")
+  
+  psi <- 100  
+  z <- psi * (preds - labels)
+
+  grad <- psi*(exp(z) - 1)
+  hess <- psi*exp(z)
+  
+  return(list(grad = grad, hess = hess))
+}
+
+# Train the model with the custom objective function
+model <- xgboost(data = dtrain, 
+                 nround = 2, 
+                 objective = linex, 
+                 eval_metric = "error")
+
+# Make predictions
+pred <- predict(model, dtest)
+
+err <- mean(as.numeric(pred > 0.5) != test_y)
+print(paste("test-error=", err))
+
+
+
+# poisson_log_likelihood <- function(params, X, y) {
+#   beta <- params[1:(length(params) )]
+#   lambda <- exp(X %*% beta)
+#   log_likelihood <- sum(dpois(y, lambda, log = TRUE))
+#   return(-log_likelihood)  # Negative log-likelihood for minimization
+# }
+# 
+# 
+# # Initialize parameters (including intercept)
+# initial_params <- rep(0, ncol(train_x) + 1)
+# 
+# # Add intercept to the data matrix
+# X_with_intercept <- cbind(1, train_x)
+# 
+# # Optimize the Poisson log-likelihood
+# optim_result <- optim(par = initial_params, 
+#                       fn = poisson_log_likelihood, 
+#                       X = X_with_intercept, 
+#                       y = train_y, 
+#                       method = "BFGS", 
+#                       control = list(maxit = 1000))
+# # Define a prediction function
+# predict_poisson <- function(X, params) {
+#   beta <- params[1:(length(params) )]
+#   lambda <- exp(X %*% beta)
+#   return(lambda)
+# }
+# 
+# # Make predictions on the training set
+# train_predictions <- predict_poisson(X_with_intercept, optimized_params)
+# 
+# # Calculate training error
+# train_error <- mean((train_predictions - train_y)^2)
+# print(paste("Training MSE:", train_error))
+# 
+# 
+# # Extract optimized parameters
+# optimized_params <- optim_result$par
+# 
+# test_predictions <- predict_poisson(test_x, optimized_params)
+# 
+# # Calculate test error
+# test_error <- mean((test_predictions - test_y)^2)
+# print(paste("Test MSE:", test_error))
+

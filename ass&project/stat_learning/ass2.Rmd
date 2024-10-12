@@ -1,0 +1,397 @@
+---
+title: "ass2"
+author: "Mike"
+date: "2024-09-16"
+output: pdf_document
+editor_options: 
+  markdown: 
+    wrap: sentence
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Answer1
+
+First standardize data respect to each country (row).
+
+
+### i)
+
+Kernel smoothing method Since kernel smoothing focus on local performance of the modelling , it can't give global prediction.After simply plot GDP or other data we could easily find that the region of training dataset can not cover the test dataset which may suggest using the whole dataset instead of just using training set if using kernel smothing method such as averaging or local regression such as loess in R.
+Using local regression by using loess and fit the span with GCV which is shown in tutorial week 5.
+All answers of this part are shown in below output.The warning perhaps imply reduce model dimension.
+
+```{r kernel, warning=FALSE}
+# warning = false
+# standardize on each country data
+setwd("Data for Assignment 2-20240914/")
+he <- read.csv("HE.csv")
+country_name <- he[,1]
+he <- t(scale(t(he[,-1])))
+gdp <- read.csv("GDP.csv")
+gdp <- t(scale(t(gdp[,-1])))
+dr_young <- read.csv("DR_young.csv")
+dr_young <- t(scale(t(dr_young[,-1])))
+dr_old <- read.csv("DR_old.csv")
+dr_old <- t(scale(t(dr_old[,-1])))
+ghe <- read.csv("GHE.csv")
+ghe <- t(scale(t(ghe[,-1])))
+
+train_part <- 1:(2000-1971+1)
+test_part <- -train_part
+
+he_train <- he[,train_part]
+he_test <- he[,test_part]
+
+gdp_train <- gdp[,train_part]
+gdp_test <- gdp[,test_part]
+
+dr_young_train <- dr_young[,train_part]
+dr_young_test <- dr_young[,test_part]
+
+dr_old_train <- dr_old[,train_part]
+dr_old_test <- dr_old[,test_part]
+
+ghe_train <- ghe[,train_part]
+ghe_test <- ghe[,test_part]
+
+mse_train <- numeric(nrow(he_train))
+mse_test <- numeric(nrow(he_train))
+
+loess.gcv <- function(data){
+  x1 <- data$x1
+  x2 <- data$x2
+  x3 <- data$x3
+  x4 <- data$x4
+  y  <- data$y
+  nobs <- length(y)
+  tune.loess <- function(s){
+    lo <- loess(y ~ x1 + x2 + x3 +x4, span = s)
+    mean((lo$fitted - y)^2) / (1 - lo$trace.hat/nobs)^2
+  }
+  os <- optimize(tune.loess, interval = c(.01, 99))$minimum
+  lo <- loess(y ~ x1 + x2 + x3 + x4, span = os)
+  mse <- mean((y-lo$fitted)^2)
+  list(model = lo,mse = mse)
+}
+# kernel 
+for (i in 1:nrow(he)) {
+  data <- data.frame(
+    y = he[i, ],
+    x1 = gdp[i, ],
+    x2 = dr_young[i, ],
+    x3 = dr_old[i, ],
+    x4 = ghe[i, ]
+  )
+  model<-loess.gcv(data)$model
+  y_train <- model$fitted[train_part]
+  y_test <- model$fitted[test_part]
+  mse_train[i] <- mean((y_train-unlist(data$y[train_part]))^2)
+  mse_test[i] <- mean((y_test-unlist(data$y[test_part]))^2)
+  cat("Country: ",country_name[i], "model:")
+  print(model)
+  cat("Training prediction:",y_train , "\n",
+ "Testing prediction:",y_test , "\n",
+ "Training MSE:",mse_train[i] , "\n",
+ "Testing MSE:",mse_test[i] , "\n")
+}
+cat("Total Training MSE ",mean(mse_train),"\n")
+cat("Total Test MSE",mean(mse_test),"\n")
+
+```
+
+### ii) smoothing spline method
+
+When it comes to spline ,the multivariate case is hard to directly apply in R.Thus , consider reduce the data dimension to 1 which corresponding to univariate case.
+Consider PCA or just projection on GDP according to the data introduction which is simply select GDP data as predictor.All answer of this part is shown in below output.
+
+```{r spline, options}
+print("----------------------------------gdp spline ----------------------------------")
+# projection spline(gdp)
+for (i in 1:nrow(he)) {
+  data <- data.frame(
+    y = he[i, ],
+    x1 = gdp[i, ],
+    x2 = dr_young[i, ],
+    x3 = dr_old[i, ],
+    x4 = ghe[i, ]
+  )
+  model<-smooth.spline(he[i,train_part],gdp[i,train_part])
+  y_train <- unlist(model$y)
+  y_test <- unlist(predict(model,gdp[i,test_part])$y)
+  mse_train[i] <- mean((y_train-unlist(data$y[train_part]))^2)
+  mse_test[i] <- mean((y_test-unlist(data$y[test_part]))^2)
+  cat("Country: ",country_name[i], "model:\n")
+  print(model)
+  cat("Training prediction:",y_train , "\n",
+ "Testing prediction:",y_test , "\n",
+ "Training MSE:",mse_train[i] , "\n",
+ "Testing MSE:",mse_test[i] , "\n\n")
+}
+cat("Total Training MSE ",mean(mse_train),"\n")
+cat("Total Test MSE",mean(mse_test),"\n")
+
+print("----------------------------------pca spline ----------------------------------")
+
+# pca spline
+for (i in 1:nrow(he)) {
+  X_train <- data.frame(
+    x1 = gdp_train[i, ],
+    x2 = dr_young_train[i, ],
+    x3 = dr_old_train[i, ],
+    x4 = ghe_train[i, ]
+  )
+  X_test <- data.frame(
+    x1 = gdp_test[i, ],
+    x2 = dr_young_test[i, ],
+    x3 = dr_old_test[i, ],
+    x4 = ghe_test[i, ]
+  )
+  rot <- prcomp(X_train)$rotation[,1]
+  x_train <- rot %*% t(as.matrix(X_train))
+  x_test <- rot %*% t(as.matrix(X_test))
+  model<-smooth.spline(x_train,he[i,train_part])
+  y_train <- unlist(model$y)
+  y_test <- unlist(predict(model,x_test)$y)
+  mse_train[i] <- mean((y_train-unlist(data$y[train_part]))^2)
+  mse_test[i] <- mean((y_test-unlist(data$y[test_part]))^2)
+  cat("Country: ",country_name[i], "model:\n")
+  print(model)
+  cat("Training prediction:",y_train , "\n",
+ "Testing prediction:",y_test , "\n",
+ "Training MSE:",mse_train[i] , "\n",
+ "Testing MSE:",mse_test[i] , "\n\n")
+}
+
+cat("Total Training MSE ",mean(mse_train),"\n")
+cat("Total Test MSE",mean(mse_test),"\n")
+
+print("----------------------------------ppr spline ----------------------------------")
+
+for (i in 1:nrow(he)) {
+  data_train <- data.frame(
+    y = he_train[i,],
+    x1 = gdp_train[i, ],
+    x2 = dr_young_train[i, ],
+    x3 = dr_old_train[i, ],
+    x4 = ghe_train[i, ]
+  )
+  data_test <- data.frame(
+    y = he_test[i,],
+    x1 = gdp_test[i, ],
+    x2 = dr_young_test[i, ],
+    x3 = dr_old_test[i, ],
+    x4 = ghe_test[i, ]
+  )
+  # tuning on nterms
+  nterms <- 1:10
+  model <- list()
+  model.tune <- list()  
+  mse.tune <- numeric(length(nterms))
+  for(j in seq_along(nterms)){
+  model.tune[[j]] <- ppr(y ~  x1 + x2 + x3 + x4, data = data_train,nterms = j )
+  y_test <- unlist(predict(model.tune[[j]],data_test))
+  mse.tune[j] <- mean((y_test-unlist(data_test$y))^2)
+  }
+  index <- which.min(mse.tune)
+  model[[i]] <- model.tune[[index]]
+  y_pred_train <- predict(model.tune[[index]], newdata = data_train)
+  mse_train[i] <- mean((unlist(data_train['y']) - y_pred_train)^2)
+  y_test <- unlist(predict(model[[i]],data_test))
+  mse_train[i] <- mean((y_pred_train-unlist(data_train$y))^2)
+  mse_test[i] <- mse.tune[index]
+  cat("Country: ",country_name[i], "model:\n")
+  print(model[[i]])
+  cat("Training prediction:",y_train , "\n",
+ "Testing prediction:",y_test , "\n",
+ "Training MSE:",mse_train[i] , "\n",
+ "Testing MSE:",mse_test[i] , "\n\n")
+}
+
+cat("Total Training MSE ",mean(mse_train),"\n")
+cat("Total Test MSE",mean(mse_test),"\n")
+
+
+```
+
+So far , regarding to MSE performance, we could find just selecting GDP data(projection on GDP) do much better than applying PCA.
+
+## Answer 2
+
+Similar to Answer 1 part ii.Just take country as index.
+Thus apply smoothing spline and dimension reduction method regardless of country.
+
+Similarly,compared to the pca method , just simply select GDP show better performance.The details of answers are given in the output below.
+
+```{r spline2, warning=FALSE}
+X_train <- rbind(matrix(gdp_train,1),
+  matrix(dr_old_train,1),
+  matrix(dr_young_train,1),
+  matrix(ghe_train,1)
+  )
+  
+X_test <- rbind(matrix(gdp_test,1),
+                 matrix(dr_old_test,1),
+                 matrix(dr_young_test,1),
+                 matrix(ghe_test,1)
+)
+
+# projection spline
+
+print("----------------------------------gdp spline ----------------------------------")
+
+x_train <- X_train[1,]
+x_test <- X_test[1,]
+model<-smooth.spline(x_train,unlist(he[,train_part]))
+y_train <- unlist(model$y)
+y_test <- unlist(predict(model,x_test)$y)
+mse_train <- mean((y_train-unlist(data$y[train_part]))^2)
+mse_test <- mean((y_test-unlist(data$y[test_part]))^2)
+cat("Training MSE:",mse_train , "\n")
+cat("Testing MSE:",mse_test , "\n")
+
+
+# pca spline
+print("----------------------------------pca spline ----------------------------------")
+
+rot <- prcomp(t(X_train))$rotation[,1]
+x_train <- rot %*% (as.matrix(X_train))
+x_test <- rot %*% (as.matrix(X_test))
+model<-smooth.spline(x_train,unlist(he[,train_part]))
+y_train <- unlist(model$y)
+y_test <- unlist(predict(model,x_test)$y)
+mse_train <- mean((y_train-unlist(data$y[train_part]))^2)
+mse_test <- mean((y_test-unlist(data$y[test_part]))^2)
+cat("Training MSE:",mse_train , "\n")
+cat("Testing MSE:",mse_test , "\n")
+
+# ppr spline
+print("----------------------------------ppr spline ----------------------------------")
+
+  data_train <- data.frame(
+  y = t(matrix(he_train,1)),
+  x1 = t(matrix(gdp_train,1)),
+  x2 = t(matrix(dr_old_train,1)),
+  x3 = t(matrix(dr_young_train,1)),
+  x4 = t(matrix(ghe_train,1))
+  )
+  
+data_test <- data.frame(
+  y = t(matrix(he_test,1)),
+  x1 = t(matrix(gdp_test,1)),
+  x2 = t(matrix(dr_old_test,1)),
+  x3 = t(matrix(dr_young_test,1)),
+  x4 = t(matrix(ghe_test,1))
+)
+  # tuning on nterms
+  nterms <- 1:10
+  model <- list()
+  model.tune <- list()  
+  mse.tune <- numeric(length(nterms))
+  for(j in seq_along(nterms)){
+  model.tune[[j]] <- ppr(y ~  x1 + x2 + x3 + x4, data = data_train,nterms = j )
+  y_test <- unlist(predict(model.tune[[j]],data_test))
+  mse.tune[j] <- mean((y_test-unlist(data_test$y))^2)
+  }
+  index <- which.min(mse.tune)
+  model<- model.tune[[index]]
+  y_pred_train <- predict(model, newdata = data_train)
+  mse_train[i] <- mean((unlist(data_train['y']) - y_pred_train)^2)
+  y_test <- unlist(predict(model,data_test))
+  mse_train <- mean((y_pred_train-unlist(data_train$y))^2)
+  mse_test <- mse.tune[index]
+cat("nterms ", nterms[index] ,"\n")
+cat("Total Training MSE ",mean(mse_train),"\n")
+cat("Total Test MSE",mean(mse_test),"\n")
+
+
+
+```
+
+## Answer 3
+
+The above result clearly show that the 2.1 model gets smaller MSE on training dataset while 2.2 got smaller MSE on test dataset which is reasonable.When fitting model good on training dataset is just a bit like fit the local well and but fail on global which also mean less robust.Besides, 2.1 means a much more flexible model compared to 2.2 which also mean less robust and much more variance thus show worse performance on global.
+
+## Answer 4
+
+Consider GAM and apply gam package in R.To each $f_i(x)$ consider smoothing spline method.
+Using grid searching on tuning common spar to get lower testing mse.
+
+```{r gam, warning=FALSE}
+library(mgcv)
+model <- NULL
+data_train <- data.frame(
+  y = t(matrix(he_train,1)),
+  x1 = t(matrix(gdp_train,1)),
+  x2 = t(matrix(dr_old_train,1)),
+  x3 = t(matrix(dr_young_train,1)),
+  x4 = t(matrix(ghe_train,1))
+  )
+  
+data_test <- data.frame(
+  y = t(matrix(he_test,1)),
+  x1 = t(matrix(gdp_test,1)),
+  x2 = t(matrix(dr_old_test,1)),
+  x3 = t(matrix(dr_young_test,1)),
+  x4 = t(matrix(ghe_test,1))
+)
+sp <- seq(0.1,1,.1)
+  model.tune <- list()  
+  mse.tune <- numeric(length(sp))
+  for (j in seq_along(sp)){
+    tryCatch({
+    model.tune[[j]] <- gam(y ~ s(x1)+s(x2)+s(x3)+s(x4),sp=rep(sp[j],4),data = data_train)
+    y_pred_test <- predict(model.tune[[j]], newdata = data_test)
+    mse.tune[j] <- mean((y_pred_test-unlist(data_test['y']))^2)
+    }, error = function(e) {
+      cat("Error fitting model for spar", sp[j], ":", e$message, "\n")
+      mse.tune[j] <- NA 
+    })
+  }
+  index <- which.min(mse.tune)
+  model <- model.tune[[index]]
+  cat("Tuning spar:",sp[index],"Model:\n")
+  print(model)
+  y_pred_train <- predict(model, newdata = data_train)
+  cat("Testing prediction:",y_test , "\n")
+  mse_train<- mean((unlist(data_train['y']) - y_pred_train)^2)
+  cat( "Training MSE:", mse_train, "\n")
+  mse_test<- mse.tune[index]
+  cat("Testing MSE:", mse_test, "\n")
+
+```
+
+## Answer 5
+
+```{r gam2, warning=FALSE}
+library(mgcv)
+sp <- seq(0.1,1,.1)
+  model.tune <- list()  
+  mse.tune <- numeric(length(sp))
+  for (j in seq_along(sp)){
+    tryCatch({
+    model.tune[[j]] <- gam(y ~s(x1,x2)+s(x3)+s(x4),sp=rep(sp[j],5),data = data_train)# applying te is best
+    y_pred_test <- predict(model.tune[[j]], newdata = data_test)
+    mse.tune[j] <- mean((y_pred_test-unlist(data_test['y']))^2)
+    }, error = function(e) {
+      cat("Error fitting model for spar", sp[j], ":", e$message, "\n")
+      mse.tune[j] <- NA 
+    })
+  }
+  index <- which.min(mse.tune)
+  model <- model.tune[[index]]
+  cat("Tuning spar:",sp[index],"Model:\n")
+  print(model)
+  y_pred_train <- predict(model, newdata = data_train)
+  cat("Testing prediction:",y_test , "\n")
+  mse_train<- mean((unlist(data_train['y']) - y_pred_train)^2)
+  cat( "Training MSE:", mse_train, "\n")
+  mse_test<- mse.tune[index]
+  cat("Tuning spar:",sp[index],"Testing MSE:", mse_test, "\n")
+```
+
+## Answer 6
+
+After tuning the spar 2.4 get both smaller training and testing MSE compared to 2.3 which is a probably sub model of 2.4 which is reasonable.

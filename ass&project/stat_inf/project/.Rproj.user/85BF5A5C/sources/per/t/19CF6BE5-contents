@@ -1,0 +1,15 @@
+---
+title: "Loss function"
+author: "Mike"
+date: "2024-05-06"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# basic idea of part 3
+The part 3 mainly covered how to make decision in a mathematical way.To my knowledge , the framework of decision theory focus on optimal risk or loss by selecting different actions, models or estimators to get the optimal on based on the value.In this article ,
+the writer introduce different loss functions as different criteria to select actions.
+
+# estimation procedure

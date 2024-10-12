@@ -1,0 +1,7 @@
+"0",""
+"0","# Select numeric columns and exclude the 'YEAR' column"
+"0","data_x <- data %>%"
+"0","  select_if(is.numeric) %>%"
+"0","  select(-YEAR)"
+"2","Error in select(., -YEAR) : unused argument (-YEAR)
+"

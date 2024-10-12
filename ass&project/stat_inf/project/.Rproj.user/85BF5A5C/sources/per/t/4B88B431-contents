@@ -1,0 +1,583 @@
+### R code for Chapter 7
+### Last update: 18/08/2014
+
+###################################################
+### Set working directory and load packages
+###################################################
+remove(list=ls())
+my.dir <- paste(getwd(),"/",sep="")
+
+require(INLA)
+
+
+require(splancs)
+require(sp)
+require(fields)
+require(maptools)
+require(lattice)
+require(abind)
+
+
+###################################################
+### Code for Section 7.1
+###################################################
+# You neeed a folder called "Ohio Lung Cancer" inside your working directory (my.dir)
+# with the data downloaded from
+# https://sites.google.com/a/r-inla.org/stbook/datasets
+
+data <- read.csv(paste(my.dir,"Ohio Lung Cancer/OhioRespMort.csv",sep=""))
+ohio <- readShapePoly(paste(my.dir,"Ohio Lung Cancer/tl_2010_39_county00",sep=""))
+county1 <- data$county
+Ohio.adj <- paste(my.dir,"Ohio Lung Cancer/Ohio.graph",sep="")
+
+formula.par <- y ~ 1 + f(county,model="bym",graph=Ohio.adj, constr=TRUE) + f(county1,year,model="iid", constr=TRUE) + year
+
+model.par <- inla(formula.par,family="poisson",data=data,E=E, 
+                  control.predictor=list(compute=TRUE), 
+                  control.compute=list(dic=TRUE,cpo=TRUE))
+
+round(model.par$summary.fixed[,1:5],3)
+
+# *** Code for Figure 7.1
+x <- seq(1,21) # Years
+plot(x,model.par$summary.fixed[2,1]*x, type="l", main="",xlab="t",ylab=expression(beta*t), ylim=c(-0.007,0.1))
+lines(model.par$summary.fixed[2,3]*x,lty=2)
+lines(model.par$summary.fixed[2,5]*x,lty=2)
+# ***
+
+# *** Code for Figure 7.2 left
+m <- model.par$marginals.random[[1]][1:88]
+zeta.ST1 <- unlist(lapply(m,function(x)inla.emarginal(exp,x)))
+
+SMR.cutoff<- c(0.0, 0.9, 1.0, 1.1,3)
+xi.factor <- cut(zeta.ST1,breaks=SMR.cutoff,include.lowest=TRUE)
+m <- model.par$summary.random[[2]][1:88,2]
+int.cut <- c(-0.008,-0.001,0,0.001,0.006)
+int.factor <- cut(m,breaks=int.cut,include.lowest=TRUE)
+
+data.ohio <- attr(ohio, "data")
+attr(ohio, "data")=data.frame(data.ohio, xi=xi.factor)
+
+trellis.par.set(axis.line=list(col=NA))
+spplot(obj=ohio, zcol= "xi", col.regions=gray(3.5:0.5/4),main="")
+# ***
+
+# *** Code for Figure 7.2 right
+data.ohio <- attr(ohio, "data")
+attr(ohio, "data") <- data.frame(data.ohio, int=int.factor)
+spplot(obj=ohio, zcol= "int",col.regions=gray(3.5:0.5/4),main="")
+# ***
+
+###################################################
+### Code for Section 7.1.1
+###################################################
+# You neeed a folder called "LBW in Georgia" inside your working directory (my.dir)
+# with the data downloaded from
+# https://sites.google.com/a/r-inla.org/stbook/datasets
+
+data <- read.csv(paste(my.dir,"LBW in Georgia/data.final.csv",sep=""))
+georgia <- readShapePoly(paste(my.dir,"LBW in Georgia/co13_d00.shp",sep=""))
+
+# Remove duplicates (area 88 and 94)
+names <- georgia$NAME
+georgia <- georgia[-c(99,100,105,137),]
+data.georgia <- attr(georgia, "data")
+
+low.vector <- as.vector(as.matrix(data[,2:12]))#by column
+E.vector <- as.vector(as.matrix(data[,13:23]))#by column
+year <- numeric(0)
+for(i in 1:11){ 
+  year<- append(year,rep(i,dim(data)[1]))
+}
+county <- as.factor(rep(data[,1],11))
+
+data <- data.frame(y= low.vector, E= E.vector, ID.area=as.numeric(county), ID.area1=as.numeric(county), year=year,
+                  ID.year = year, ID.year1=year, ID.area.year = seq(1,length(county)))
+
+# Spatial graph
+Georgia.adj <- paste(my.dir,"LBW in Georgia/Georgia.graph",sep="")
+# Temporal graph
+Temp.adj <- paste(my.dir,"LBW in Georgia/Temp.graph",sep="")
+
+formula.ST1 <- y ~  f(ID.area,model="bym",graph=Georgia.adj) +f(ID.year,model="rw2") + f(ID.year1,model="iid")
+lcs <- inla.make.lincombs(ID.year = diag(11),  ID.year1 = diag(11))
+
+model.ST1 <- inla(formula.ST1,family="poisson",data=data,E=E, 
+                  control.predictor=list(compute=TRUE),
+                  lincomb=lcs)
+
+temporal.CAR <- lapply(model.ST1$marginals.random$ID.year, 
+                     function(X){
+                       marg <- inla.tmarginal(function(x) exp(x), X)
+                       inla.emarginal(mean, marg)
+                     })
+
+temporal.IID <- lapply(model.ST1$marginals.random$ID.year1, 
+                     function(X){
+                       marg <- inla.tmarginal(function(x) exp(x), X)
+                       inla.emarginal(mean, marg)
+                     })
+
+# *** Code for Figure 7.3
+plot(seq(1,11),seq(0.9,1.1,length=11),type="n",xlab="t",ylab=expression(exp(phi[t])))
+lines(unlist(temporal.IID))
+lines(unlist(temporal.CAR),lty=2)
+abline(h=1,lty=1)
+# ***
+
+###################################################
+### Code for Section 7.1.2 (run the code for Section 7.1.1 first) 
+###################################################
+#--- Type I interaction ---#
+formula.intI<- y ~ + f(ID.area,model="bym", graph=Georgia.adj) +
+    f(ID.year,model="rw2") + f(ID.year1,model="iid") + f(ID.area.year,model="iid")
+
+mod.intI <- inla(formula.intI,family="poisson",data=data,E=E, 
+                 control.predictor=list(compute=TRUE), 
+                 control.compute=list(dic=TRUE,cpo=TRUE))
+
+#--- Type II interaction ---#
+ID.area.int <- data$ID.area
+ID.year.int <- data$ID.year
+formula.intII<- y ~ f(ID.area,model="bym",graph=Georgia.adj) +
+  f(ID.year,model="rw2") + f(ID.year1,model="iid") +
+  f(ID.area.int,model="iid", group=ID.year.int,control.group=list(model="rw2")) 
+
+mod.intII <- inla(formula.intII,family="poisson",data=data,E=E, 
+                  control.predictor=list(compute=TRUE), 
+                  control.compute=list(dic=TRUE,cpo=TRUE))
+
+#--- Type III interaction ---#
+formula.intIII<- y ~  f(ID.area,model="bym",graph=Georgia.adj) +
+  f(ID.year,model="rw2") + 
+  f(ID.year1,model="iid") +
+  f(ID.year.int,model="iid", group=ID.area.int,control.group=list(model="besag", graph=Georgia.adj))
+
+mod.intIII <- inla(formula.intIII,family="poisson",data=data,E=E, 
+                   control.predictor=list(compute=TRUE), 
+                   control.compute=list(dic=TRUE,cpo=TRUE))
+
+#--- Type IV interaction ---#
+formula.intIV<- y ~ f(ID.area,model="bym",graph=Georgia.adj) +
+  f(ID.year,model="rw2") +
+  f(ID.year1,model="iid") + 
+  f(ID.area.int,model="besag", graph=Georgia.adj,group=ID.year.int,control.group=list(model="rw2"))
+
+mod.intIV <- inla(formula.intIV,family="poisson",data=data,E=E, 
+                  control.predictor=list(compute=TRUE), 
+                  control.compute=list(dic=TRUE,cpo=TRUE))
+
+delta.intI <- data.frame(delta=mod.intI$summary.random$ID.area.year[,2],year=data$ID.year,ID.area=data$ID.area)
+delta.intI.matrix <- matrix(delta.intI[,1], 159,11,byrow=FALSE)
+rownames(delta.intI.matrix)<- delta.intI[1:159,3]
+
+delta.intII <- data.frame(delta=mod.intII$summary.random$ID.area.int[,2],year=data$ID.year,ID.area=data$ID.area)
+delta.intII.matrix <- matrix(delta.intII[,1], 159,11,byrow=FALSE)
+rownames(delta.intII.matrix)<- delta.intII[1:159,3]
+
+delta.intIII <- data.frame(delta=mod.intIII$summary.random$ID.year.int[,2],year=data$ID.year,ID.area=data$ID.area)
+delta.intIII.matrix <- matrix(delta.intIII[,1], 159,11,byrow=FALSE)
+rownames(delta.intIII.matrix)<- delta.intIII[1:159,3]
+
+delta.intIV <- data.frame(delta=mod.intIV$summary.random$ID.area.int[,2],year=data$ID.year,ID.area=data$ID.area)
+delta.intIV.matrix <- matrix(delta.intIV[,1], 159,11,byrow=FALSE)
+rownames(delta.intIV.matrix)<- delta.intIV[1:159,3]
+
+# Check the absence of spatial trend for (intI)
+cutoff.interaction <- c(-1,-0.01,0.01,1)
+delta.intI.factor <- data.frame(NAME=data.georgia$NAME)
+for(i in 1:11){
+  delta.factor.temp <- cut(delta.intI.matrix[,i],breaks=cutoff.interaction,include.lowest=TRUE) 
+  delta.intI.factor <- cbind(delta.intI.factor,delta.factor.temp)
+}
+colnames(delta.intI.factor)<- c("NAME",seq(2000,2010))
+
+# Check the absence of spatial trend for (intII)
+delta.intII.factor <- data.frame(NAME=data.georgia$NAME)
+for(i in 1:11){
+  delta.factor.temp <- cut(delta.intII.matrix[,i],breaks=cutoff.interaction,include.lowest=TRUE) 
+  delta.intII.factor <- cbind(delta.intII.factor,delta.factor.temp)
+}
+colnames(delta.intII.factor)<- c("NAME",seq(2000,2010))
+
+# Check the absence of spatial trend (intIII)
+delta.intIII.factor <- data.frame(NAME=data.georgia$NAME)
+for(i in 1:11){
+  delta.factor.temp <- cut(delta.intIII.matrix[,i],breaks=cutoff.interaction,include.lowest=TRUE) 
+  delta.intIII.factor <- cbind(delta.intIII.factor,delta.factor.temp)
+}
+colnames(delta.intIII.factor)<- c("NAME",seq(2000,2010))
+
+# Check the Spatial trend (intIV)
+delta.intIV.factor <- data.frame(NAME=data.georgia$NAME)
+for(i in 1:11){
+  delta.factor.temp <- cut(delta.intIV.matrix[,i],breaks=cutoff.interaction,include.lowest=TRUE) 
+  delta.intIV.factor <- cbind(delta.intIV.factor,delta.factor.temp)
+}
+colnames(delta.intIV.factor)<- c("NAME",seq(2000,2010))
+
+# *** Code for Figure 7.4
+attr(georgia, "data") <- data.frame(data.georgia, intI=delta.intI.factor, intII=delta.intII.factor, intIII=delta.intIII.factor, intIV=delta.intIV.factor)
+trellis.par.set(axis.line=list(col=NA))
+spplot(obj=georgia, zcol=c("intI.2000","intI.2001","intI.2002",
+                           "intI.2003", "intI.2004","intI.2005",
+                           "intI.2006", "intI.2007","intI.2008",
+                           "intI.2009","intI.2010"), col.regions=gray(2.5:0.5/3),names.attr=seq(2000,2010),main="")
+# ***
+
+# *** Code for Figure 7.5
+spplot(obj=georgia, zcol=c("intII.2000","intII.2001","intII.2002",
+                           "intII.2003", "intII.2004","intII.2005",
+                           "intII.2006", "intII.2007","intII.2008",
+                           "intII.2009","intII.2010"), col.regions=gray(2.5:0.5/3),names.attr=seq(2000,2010),main="")
+# ***
+
+# *** Code for Figure 7.6
+spplot(obj=georgia, zcol=c("intIII.2000","intIII.2001","intIII.2002",
+                           "intIII.2003", "intIII.2004","intIII.2005",
+                           "intIII.2006", "intIII.2007","intIII.2008",
+                           "intIII.2009","intIII.2010"), col.regions=gray(2.5:0.5/3),names.attr=seq(2000,2010),main="")
+# ***
+
+# *** Code for Figure 7.7
+spplot(obj=georgia, zcol=c("intIV.2000","intIV.2001","intIV.2002",
+                           "intIV.2003", "intIV.2004","intIV.2005",
+                           "intIV.2006", "intIV.2007","intIV.2008",
+                           "intIV.2009","intIV.2010"), col.regions=gray(2.5:0.5/3),names.attr=seq(2000,2010),main="")
+# ***
+
+###################################################
+### Code for Section 7.2
+###################################################
+# You neeed a folder called "Air pollution in Piemonte" inside your working directory (my.dir)
+# with the data downloaded from
+# https://sites.google.com/a/r-inla.org/stbook/datasets
+
+# Load the data for the 24 stations and 182 days
+Piemonte_data <- read.table(paste(my.dir,"Air pollution in Piemonte/Piemonte_data_byday.csv",sep=""),header=TRUE,sep=",")
+head(Piemonte_data)
+
+coordinates <-read.table(paste(my.dir,"Air pollution in Piemonte/coordinates.csv",sep=""),header=TRUE,sep=",")
+rownames(coordinates) <- coordinates[,"Station.ID"]
+# Borders of Piemonte (in km)
+borders <-read.table(paste(my.dir,"Air pollution in Piemonte/Piemonte_borders.csv",sep=""),header=TRUE,sep=",")
+
+n_stations <- length(coordinates$Station.ID) #24 stations
+n_data <- length(Piemonte_data$Station.ID) #4368 space-time data
+n_days <- n_data/n_stations #182 time points
+
+Piemonte_data$time <- rep(1:n_days, each=n_stations)
+coordinates.allyear <- as.matrix(coordinates[Piemonte_data$Station.ID, c("UTMX","UTMY")])
+dim(coordinates.allyear)
+
+Piemonte_data$logPM10 <- log(Piemonte_data$PM10)
+mean_covariates <- apply(Piemonte_data[,3:10],2,mean)
+sd_covariates <- apply(Piemonte_data[,3:10],2,sd)
+Piemonte_data[,3:10] <- scale(Piemonte_data[,3:10],center=mean_covariates, scale=sd_covariates)
+
+# Load the covariate arrays (each array except for A is 56x72x182)
+load(paste(my.dir,"Air pollution in Piemonte/Covariates/Altitude_GRID.Rdata",sep="")) #A; AltitudeGRID
+load(paste(my.dir,"Air pollution in Piemonte/Covariates/WindSpeed_GRID.Rdata",sep="")) #WS; WindSpeedGRID
+load(paste(my.dir,"Air pollution in Piemonte/Covariates/HMix_GRID.Rdata",sep="")) #HMIX; HMixMaxGRID
+load(paste(my.dir,"Air pollution in Piemonte/Covariates/Emi_GRID.Rdata",sep="")) #EMI; EmiGRID
+load(paste(my.dir,"Air pollution in Piemonte/Covariates/Temp_GRID.Rdata",sep="")) #TEMP; Mean_Temp
+load(paste(my.dir,"Air pollution in Piemonte/Covariates/Prec_GRID.Rdata",sep="")) #PREC; Prec
+# Load the Piemonte grid c(309,529),c(4875,5159),dims=c(56,72)
+load(paste(my.dir,"Air pollution in Piemonte/Covariates/Piemonte_grid.Rdata",sep=""))
+
+# Extract the standardized covariate for day i_day (you get a 56X72X8 matrix)
+i_day <- 122
+which_date <- unique(Piemonte_data$Date)[i_day]
+print(paste("**---- You will get a prediction for ", which_date, "---**"))
+
+# Standardise the covariates for the selected day
+source(paste(my.dir,"Air pollution in Piemonte/Covariates/covariates_selector.R",sep=""))
+library(abind)
+covariate_array_std <- covariates_selector_funct(i_day, mean_covariates, sd_covariates)
+
+# Set to NA the (standardized) altitude values >7 (1000 n)
+elevation <- covariate_array_std[,,1]
+index_mountains <- which(elevation>7)
+elevation[elevation>7] <- NA
+covariate_array_std[,,1] <- elevation
+
+# Reshape the 3D array (56x72x8) into a dataframe (4032x8) with the 8 covariates on the columns
+covariate_matrix_std <- data.frame(apply(covariate_array_std,3,function(X) c(t(X))))
+colnames(covariate_matrix_std) <- colnames(Piemonte_data[,3:10])
+
+# *** Code for Figure 7.8 top
+plot(Piemonte_grid,col="grey",pch=18, asp=1, xlim=range(Piemonte_grid$UTMX_km))
+lines(borders, lwd=3, asp=1)
+points(coordinates$UTMX, coordinates$UTMY, pch=20, cex=2)
+# ***
+
+# *** Code for Figure 7.8 bottom
+Piemonte_mesh <- inla.mesh.2d(loc=cbind(coordinates$UTMX,coordinates$UTMY), 
+                              loc.domain=borders, offset=c(10, 140), max.edge=c(50, 1000))
+plot(Piemonte_mesh,asp=1,main="")
+lines(borders, lwd=3)
+points(coordinates$UTMX, coordinates$UTMY, pch=20, cex=2)
+# ***
+
+Piemonte_spde <- inla.spde2.matern(mesh=Piemonte_mesh, alpha=2)
+A_est <- inla.spde.make.A(mesh=Piemonte_mesh,
+                          loc=coordinates.allyear,
+                          group=Piemonte_data$time,
+                          n.group=n_days)
+dim(A_est)
+
+s_index <- inla.spde.make.index(name="spatial.field",
+                                n.spde=Piemonte_spde$n.spde,
+                                n.group=n_days)
+names(s_index)
+
+stack_est <- inla.stack(data=list(logPM10=Piemonte_data$logPM10),
+                    A=list(A_est, 1),
+                    effects=list(c(s_index,list(Intercept=1)), list(Piemonte_data[,3:10])), tag="est")
+
+A_pred <- inla.spde.make.A(mesh=Piemonte_mesh,
+                           loc=as.matrix(Piemonte_grid),
+                           group=i_day,  #selected day for prediction
+                           n.group=n_days)
+stack_pred <- inla.stack(data=list(logPM10=NA),
+                         A=list(A_pred,1),
+                         effects=list(c(s_index,list(Intercept=1)), list(covariate_matrix_std)),
+                         tag="pred")
+
+stack <- inla.stack(stack_est, stack_pred)
+
+formula <- logPM10 ~ -1 + Intercept + A + UTMX + UTMY + WS + TEMP + HMIX + PREC + EMI + 
+  f(spatial.field, model=Piemonte_spde,group=spatial.field.group, control.group=list(model="ar1"))
+
+# ATTENTION: the run is computationally intensive!
+output <- inla(formula,
+       data=inla.stack.data(stack, spde=Piemonte_spde),
+       family="gaussian",
+       control.predictor=list(A=inla.stack.A(stack), compute=TRUE))   
+
+# Fixed effects betas
+fixed.out <- round(output$summary.fixed,3)
+# Hyperparameters sigma2eps and AR(1) a
+rownames(output$summary.hyperpar)
+
+sigma2e_marg <- inla.tmarginal(function(x) 1/x,output$marginals.hyperpar[[1]])
+sigma2e_m1 <- inla.emarginal(function(x) x, sigma2e_marg)
+sigma2e_m2 <- inla.emarginal(function(x) x^2, sigma2e_marg)
+sigma2e_stdev <- sqrt(sigma2e_m2 - sigma2e_m1^2)
+sigma2e_quantiles <- inla.qmarginal(c(0.025, 0.5, 0.975), sigma2e_marg)
+
+ar <- output$summary.hyperpar["GroupRho for spatial.field",]
+
+# Spatial parameters sigma2 and range
+mod.field <- inla.spde2.result(output, name="spatial.field", Piemonte_spde)
+
+var.nom.marg <- mod.field$marginals.variance.nominal[[1]]
+var.nom.m1 <- inla.emarginal(function(x) x, var.nom.marg)
+var.nom.m2 <- inla.emarginal(function(x) x^2, var.nom.marg)
+var.nom.stdev <- sqrt(var.nom.m2 - var.nom.m1^2)
+var.nom.quantiles <- inla.qmarginal(c(0.025, 0.5, 0.975), var.nom.marg)
+
+range.nom.marg <- mod.field$marginals.range.nominal[[1]]
+range.nom.m1 <- inla.emarginal(function(x) x, range.nom.marg)
+range.nom.m2 <- inla.emarginal(function(x) x^2, range.nom.marg)
+range.nom.stdev <- sqrt(range.nom.m2 - range.nom.m1^2)
+range.nom.quantiles <- inla.qmarginal(c(0.025, 0.5, 0.975), range.nom.marg)
+
+index_pred <- inla.stack.index(stack,"pred")$data
+lp_marginals <- output$marginals.linear.predictor[index_pred]
+
+lp_mean <- unlist(lapply(lp_marginals, function(x) inla.emarginal(exp, x)))
+lp_grid_mean <- matrix(lp_mean, 56, 72, byrow=T)
+
+# Select only points inside Piemonte and set NA to the outer points 
+lp_grid_mean[index_mountains] <- NA
+library(splancs)
+inside_Piemonte <- matrix(inout(Piemonte_grid, borders), 56, 72, byrow=T)
+inside_Piemonte[inside_Piemonte==0] <- NA
+inside_lp_grid_mean <- inside_Piemonte *  lp_grid_mean
+
+seq.x.grid <- seq(range(Piemonte_grid[,1])[1],range(Piemonte_grid[,1])[2],length=56)
+seq.y.grid <- seq(range(Piemonte_grid[,2])[1],range(Piemonte_grid[,2])[2],length=72)
+
+# *** Code for Figure 7.9
+print(levelplot(x=inside_lp_grid_mean,
+                row.values=seq.x.grid,
+                column.values=seq.y.grid,
+                ylim=c(4875,5159), xlim=c(309,529),
+                col.regions=gray(seq(.9,.2,l=100)),
+                aspect="iso",
+                contour=TRUE, labels=FALSE, pretty=TRUE, 
+                xlab="",ylab=""))
+trellis.focus("panel", 1, 1, highlight=FALSE)
+lpoints(borders,col=1,cex=.25)
+lpoints(coordinates$UTMX, coordinates$UTMY,col=1,lwd=2,pch=21)
+trellis.unfocus()
+# ***
+
+# *** Code for Figure 7.10
+threshold <- log(50)
+prob  <- lapply(X=lp_marginals, FUN=function(x) inla.pmarginal(marginal=x,threshold))
+tailprob_grid <- matrix(1-unlist(prob),56,72, byrow=T)
+
+tailprob_grid[index_mountains] <- NA
+inside_tailprob_grid <- inside_Piemonte *  tailprob_grid
+
+print(levelplot(x=inside_tailprob_grid,
+                row.values=seq.x.grid,
+                column.values=seq.y.grid,
+                ylim=c(4875,5159), xlim=c(309,529),
+                at=seq(0,1,by=.1),
+                col.regions=gray(seq(.9,.2,l=100)),
+                aspect="iso",
+                contour=TRUE, labels=FALSE, pretty=TRUE, 
+                xlab="",ylab=""))
+trellis.focus("panel", 1, 1, highlight=FALSE)
+lpoints(borders,col=1,cex=.25)
+lpoints(coordinates$UTMX, coordinates$UTMY,col=1,lwd=2,pch=21)
+trellis.unfocus()
+# ***
+
+###################################################
+### Code for Section 7.2.1 (run the code for Section 7.2 first)
+###################################################
+library(sf)
+asl <- st_read(paste(my.dir,"Air pollution in Piemonte/ASL_Piemonte/ASL_Piemonte.shp",sep=""))
+asl@data$COD
+
+library(sp)
+coords <- SpatialPoints(coordinates[,2:3]*1000) #coords of the stations
+match_coords_asl <- over(coords,asl)
+table(match_coords_asl$COD) 
+
+grid <- SpatialPoints(Piemonte_grid*1000) #change km --> m
+match_grid_asl <- over(grid,asl)
+table(match_grid_asl$COD)
+
+sum(is.na(match_grid_asl$ID)) #number of NAs
+match_grid_asl <- match_grid_asl[!is.na(match_grid_asl$ID),]
+
+# *** Code for Figure 7.11
+plot(asl,asp=1)
+points(grid, col="grey",pch=18)
+points(coords,pch=19)
+# ***
+
+AL_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="AL",]))
+length(AL_ind)
+AT_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="AT",]))
+BI_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="BI",]))
+CN1_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="CN1",]))
+#points(grid[CN1_ind,],col=2)
+CN2_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="CN2",]))
+NO_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="NO",]))
+TO_ind <-  as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="TO",]))
+TO3_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="TO3",]))
+TO4_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="TO4",]))
+TO5_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="TO5",]))
+VC_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="VC",]))
+VCO_ind <- as.numeric(rownames(match_grid_asl[match_grid_asl$COD=="VCO",]))
+#points(grid[VCO_ind,],col=3)
+
+dim_lp <- nrow(inla.stack.A(stack)) + ncol(inla.stack.A(stack))
+
+lc_AL_vec <- rep(NA,times=dim_lp)
+lc_AL_vec[index_pred][AL_ind] <- 1/length(AL_ind)
+lc_AL <- inla.make.lincomb(Predictor = lc_AL_vec)
+names(lc_AL) <- "lc_AL"
+
+lc_AT_vec <- rep(NA,dim_lp)
+lc_AT_vec[index_pred][AT_ind]<-1/length(AT_ind)
+lc_AT <- inla.make.lincomb(Predictor = lc_AT_vec)
+names(lc_AT) <- "lc_AT"
+
+lc_BI_vec <- rep(NA,dim_lp)
+lc_BI_vec[index_pred][BI_ind]<-1/length(BI_ind)
+lc_BI <- inla.make.lincomb(Predictor = lc_BI_vec)
+names(lc_BI) <- "lc_BI"
+
+lc_CN1_vec <- rep(NA,dim_lp)
+lc_CN1_vec[index_pred][CN1_ind]<-1/length(CN1_ind)
+lc_CN1 <- inla.make.lincomb(Predictor = lc_CN1_vec)
+names(lc_CN1) <- "lc_CN1"
+
+lc_CN2_vec <- rep(NA,dim_lp)
+lc_CN2_vec[index_pred][CN2_ind]<-1/length(CN2_ind)
+lc_CN2 <- inla.make.lincomb(Predictor = lc_CN2_vec)
+names(lc_CN2) <- "lc_CN2"
+
+lc_NO_vec <- rep(NA,dim_lp)
+lc_NO_vec[index_pred][NO_ind]<-1/length(NO_ind)
+lc_NO <- inla.make.lincomb(Predictor = lc_NO_vec)
+names(lc_NO) <- "lc_NO"
+
+lc_TO_vec <- rep(NA,dim_lp)
+lc_TO_vec[index_pred][TO_ind]<-1/length(TO_ind)
+lc_TO <- inla.make.lincomb(Predictor = lc_TO_vec)
+names(lc_TO) <- "lc_TO"
+
+lc_TO3_vec <- rep(NA,dim_lp)
+lc_TO3_vec[index_pred][TO3_ind]<-1/length(TO3_ind)
+lc_TO3 <- inla.make.lincomb(Predictor = lc_TO3_vec)
+names(lc_TO3) <- "lc_TO3"
+
+lc_TO4_vec <- rep(NA,dim_lp)
+lc_TO4_vec[index_pred][TO4_ind]<-1/length(TO4_ind)
+lc_TO4 <- inla.make.lincomb(Predictor = lc_TO4_vec)
+names(lc_TO4) <- "lc_TO4"
+
+lc_TO5_vec <- rep(NA,dim_lp)
+lc_TO5_vec[index_pred][TO5_ind]<-1/length(TO5_ind)
+lc_TO5 <- inla.make.lincomb(Predictor = lc_TO5_vec)
+names(lc_TO5) <- "lc_TO5"
+
+lc_VC_vec <- rep(NA,dim_lp)
+lc_VC_vec[index_pred][VC_ind]<-1/length(VC_ind)
+lc_VC <- inla.make.lincomb(Predictor = lc_VC_vec)
+names(lc_VC) <- "lc_VC"
+
+lc_VCO_vec <- rep(NA,dim_lp)
+lc_VCO_vec[index_pred][VCO_ind]<-1/length(VCO_ind)
+lc_VCO <- inla.make.lincomb(Predictor = lc_VCO_vec)
+names(lc_VCO) <- "lc_VCO"
+
+lc_all_ASL <- c(lc_AL, lc_AT, lc_BI, lc_CN1, lc_CN2,
+                lc_NO, lc_TO, lc_TO3, lc_TO4, lc_TO5,
+                lc_VC, lc_VCO)
+length(lc_all_ASL)
+
+#ATTENTION: the run is computationally intensive!
+output_asl <- inla(formula,
+       data=inla.stack.data(stack, spde=Piemonte_spde),
+       family="gaussian",
+       lincomb = lc_all_ASL,
+       control.predictor=list(A=inla.stack.A(stack), compute=TRUE))
+
+output_asl$summary.lincomb.derived
+
+asl_lp_marginals <- output_asl$marginals.lincomb.derived 
+asl_lp_mean_exp <- lapply(asl_lp_marginals, function(x) inla.emarginal(exp,x))
+
+asl <- readShapePoly(paste(my.dir,"Air pollution in Piemonte/ASL_Piemonte/ASL_Piemonte.shp",sep=""))
+
+# Extract asl coordinates   
+# Some operations for fixing label names and label positions on the map
+asl_coords <- coordinates(asl)
+asl_coords[4,2] <- asl_coords[4,2] + 20000
+asl_coords <- SpatialPoints(asl_coords)
+labels <- data.frame(asl_coords, attr(asl,"data")$COD)
+
+# *** Code for Figure 7.12
+asl_labels  <- list("ltext",x=labels[,1:2],labels=labels[,3],col=1,cex=1.5) 
+asl_lp <- data.frame(exp.mean = unlist(asl_lp_mean_exp))
+asl_lp$COD <- substr(rownames(asl_lp),4,6)
+
+asl_lp <- data.frame(exp.mean = unlist(asl_lp_mean_exp))
+asl_lp$COD <- substr(rownames(asl_lp),4,6)
+attr(asl, "data") <- merge(attr(asl, "data"),asl_lp,by="COD",sort=F)
+
+spplot(obj=asl, zcol= "exp.mean", main="", col.regions=gray(64:0/64), 
+       contour=T, sp.layout=list(asl_labels), 
+       at=seq(min(inside_lp_grid_mean,na.rm=T),max(inside_lp_grid_mean,na.rm=T),length=40))
+# ****
+
+

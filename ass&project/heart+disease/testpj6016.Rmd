@@ -1,0 +1,656 @@
+---
+title: "Project on Bayesian analysis on heart-diease data"
+author: 
+date: "2023-11-02"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+# Introduction
+The dataset is a heart disease dataset from the UC Irvine Machine Learning Repository1, one of the most popular datasets available. I chose this dataset primarily because of its prominent position on the website, which piqued my interest. Furthermore, the dataset exhibits a small number of instances and a moderate volume of variables, making it an ideal candidate for Bayesian analysis with MCMC methods, which may not take too long to converge.
+
+Additionally, one response variable in the dataset, named "heart-disease," can be interpreted as an ordinal variable, providing severity of the disease. This makes it a valuable dataset for exploring Bayesian analysis in multiple categories classification, which is crucial in many medical applications.
+
+The primary objectives of my project are to identify the appropriate model and significant factors for this dataset.
+
+The original dataset is more extensive, comprising 76 attributes and numerous missing data points. However, there is a shorter version of the dataset with 14 attributes, commonly used in machine learning. I chose the brief version for its convenience, as it requires less data processing and generation.
+
+The dataset I am working with includes 14 variables: 8 symbolic and 6 numeric. These variables encompass age, sex, chest pain type (angina, abnang, notang, asympt), Trestbps (resting blood pressure), cholesterol, fasting blood sugar (< 120, true or false), resting ECG (norm, abn, hyper), max heart rate, exercise-induced angina (true or false), old peak, slope (up, flat, down), number of vessels colored (with no detailed description), and thal (norm, fixed, revers). Finally, the classes are either "healthy" (buff) or "with heart disease" (sick).
+
+The dataset contains 303 instances, with only 7 instances having missing data. Since the amount of missing data is relatively small, we can either gernate missing values or remove the instances containing missing data1.
+
+
+
+# Methodology
+## Data processing 
+Standardize the numerical data.Since the dataset seems to have some ordinal covariates , I transformed them into a numerical covariates to implement the following model without standardizing them.
+## Logstic regression model
+First let us see how a fundamental model,logistic regression model, performs on a general classification question whether someone is healhy or not.
+The logistic model can be described as below:
+The probability of being sick or healthy depends on the other 13 variables and it can be given by
+\begin{equation}\label{logit:p}
+P(y=1|\theta)=\frac{exp(\theta)}{1+exp(\theta)}=\frac{1}{1+exp(-\theta)}
+\end{equation}
+where $\theta$ is given by
+\begin{equation}\label{logit:linear}
+\theta=X(\beta\gamma)
+\end{equation}
+where
+$$
+X = \begin{bmatrix}
+    1 & x_{1,1} & x_{1,2} & \cdots & x_{1,p} \\
+    1 & x_{2,1} & x_{2,2} & \cdots & x_{2,p} \\
+    \vdots & \vdots & \vdots & \ddots & \vdots \\
+    1 & x_{n,1} & x_{n,2} & \cdots & x_{n,p}
+\end{bmatrix}
+$$
+$$
+\beta\gamma = \begin{bmatrix}
+\beta_0 \\
+    \beta_1\gamma_1 \\
+    \beta_2\gamma_2 \\
+    \vdots \\
+    \beta_p\gamma_p
+  \end{bmatrix}
+$$
+
+where $\beta_i,(0\leq i \leq p)$ has a prior Normal distribution
+$$
+\beta_i\sim\mathcal{N}(\mu_i, \sigma_i^2)
+$$
+and $\gamma_i,(1\leq i \leq p)$ follows a prior Bernoulli distribution
+$$
+\gamma_i\sim\text{Bernoulli}(p_i)
+$$
+the prior distrubution of $\beta$ can be weakly informative with large spread $\sigma^2$ if we have some good piror information.Furthermore,$\mu=0$ is usually applied in many case which may means we assume that weak prior information and correlation as it is also a good beginning to train a mcmc process.
+$\gamma$ is used to select model covariates so we may assume $p=0.5$.
+
+In this case,I assume that $\sigma_0=2$ and other $sigma_i=1$.
+
+Now we can derive the post distribution which is always proportionate to joint distribution and if we want to implement a Metropolis Hasting Algorithm , we usually use ratio of the distribution which mean the proportionality coefficient does not influence the results.So we just need to derive our joint distribution density .
+\begin{align*}
+P(Y,\theta,X,\beta,\gamma) &= P(Y|\theta,X,\beta,\gamma)P(\theta|X,\beta,\gamma)P(\beta)P(\gamma) \\
+&= P(Y|\theta,X,\beta,\gamma)P(\beta)P(\gamma) \\
+&= \prod_{i=1}^{n} P(y_i | X_i=[1,x_{i,1},x_{i,2},\ldots,x_{i,p}]; \beta)P(\beta)P(\gamma) \\
+&\propto \prod_{i=1}^{n} \left( \frac{1}{1 + \exp(-X_i\beta)} \right)^{y_i} \left( 1 - \frac{1}{1 + \exp(-X_i\beta)} \right)^{1 - y_i}\prod_{j=0}^{p} \text{Norm}(\beta_j|0,\sigma_j^2)
+\end{align*}
+so we can derive our log form of density function or log likelihood function given by:
+\begin{equation}\label{logit:log}
+\mathcal{L}(\beta,\gamma,\theta;Y,X) = \sum_{i=1}^{n} \left[ y_i \log\left(\frac{1}{1 + \exp(-X_i\beta)}\right) + (1 - y_i) \log\left(1 - \frac{1}{1 + \exp(-X_i\beta)}\right) \right]+\sum_{j=0}^{p}\log(\text{Norm}(\beta_j|0,\sigma_j^2))
+\end{equation}
+
+ the acceptance ration $r$ of Metropolis Hasting Algorithm could be derived. The general form of $log(r)$ is when every time we just consider updating a cluster of parameters denote $\alpha$ as either$\beta$ or $\gamma$.
+\begin{equation}\label{logit:ratio}
+\log(r) = \mathcal{L}(\alpha^{\ast}) - \mathcal{L}(\alpha^{(s)}) + \log[J(\alpha^{(s)}|\alpha^{\ast})] - \log[J(\alpha^{\ast}|\alpha^{(s)})]
+\end{equation}
+To implement a MCMC method quickly and easily, we will use both Gibbs sampler and  Metropolis Hasting Algorithm.
+
+We can first update $\gamma$.We can either update the cluster of whole $\gamma$ or update each $\gamma_i$ the poster distribution of $\gamma$ is a multinomial distribution which is a little bit complex while $\gamma_i$ is can be easily dirived by (\ref{logit:log}) and (\ref{logit:ratio}) since it follows a Bernoulli distribution only be either 1 or 0 .Furthermore ,the ratio $r$ can be interpreted as odd ratio.
+So postier distribution is:
+$$
+P(\gamma_i=1)  =logitic[log(odds)]=logistic[log(r)]
+$$
+
+Then we need to update the whole cluster of $\beta$ based on a multivariate normal distribution 
+$$J(\beta^{\ast}|\beta^{(s)})=MVNorm(\beta^{\ast}|\beta^{(s)},\nu\Sigma)$$
+(in numerical case I ues $\nu=0.08$ and $\Sigma$ generated from glm model coefficients matrix which may suggest a high informative)
+since multivariate normal distribution is symmetric ,so the log of ratio can be reduced as:
+$$
+log(r)= \mathcal{L}(\beta^{\ast};\gamma^{(s+1)},\theta,Y,X) - \mathcal{L}(\beta^{(s)};\gamma^{(s+1)},\theta,Y,X)
+$$
+
+Then we need to sample a random variable following $rv\sim U(0,1)$ and test  $rv<log(r)$ .If true,we update $\beta^{(s+1)}$ as $\beta^{\ast}$.If false, remain $\beta^{(s+1)}$ as $\beta^{(s)}$.
+Finally ,we iterate the above updating processes for more than thousand times.
+
+<!-- The above model was built on 2 categories. The core idea of the model can be also moved to multipe categories modeling in GLM.From odds ratio , the logistic regression can be given: -->
+<!-- \begin{equation}\label{logit:odd} -->
+<!-- \frac{P(y=1|\theta)}{P(y=0|\theta}=\frac{\frac{exp(\theta)}{1+exp(\theta)}}{\frac{1}{1+exp(\theta)}}=exp(\theta) -->
+<!-- \end{equation} -->
+
+
+
+
+<!-- Similarly,we use $P(y=0|\theta)$ as baseline to get odds ratio,the Multicategory regression model is given below: -->
+
+<!-- \begin{equation}\label{cat:odd} -->
+<!-- \frac{P(y=k|\theta_1,\theta_2,\cdots,\theta_q-1)}{P(y=0|\theta_1,,\theta_2,\cdots,\theta_q-1)}=exp(\theta_k) -->
+<!-- \end{equation} -->
+<!-- where $\theta_k$ is given by -->
+<!-- \begin{equation}\label{cat:linear} -->
+<!-- \theta_k=X(\beta_k\gamma_k) -->
+<!-- \end{equation} -->
+<!-- where -->
+<!-- $$ -->
+<!-- X = \begin{bmatrix} -->
+<!--     1 & x_{1,1} & x_{1,2} & \cdots & x_{1,p} \\ -->
+<!--     1 & x_{2,1} & x_{2,2} & \cdots & x_{2,p} \\ -->
+<!--     \vdots & \vdots & \vdots & \ddots & \vdots \\ -->
+<!--     1 & x_{n,1} & x_{n,2} & \cdots & x_{n,p} -->
+<!-- \end{bmatrix} -->
+<!-- $$ -->
+<!-- $$ -->
+<!-- \beta_k\gamma_k = \begin{bmatrix} -->
+<!-- \beta_{0,k} \\ -->
+<!--     \beta_{1,k}\gamma_{1,k} \\ -->
+<!--     \beta_{2,k}\gamma_{2,k} \\ -->
+<!--     \vdots \\ -->
+<!--     \beta_{p,k}\gamma_{p,k} -->
+<!--   \end{bmatrix} -->
+<!-- $$ -->
+
+<!-- where $\beta_i,_k,(0\leq i \leq p)$ has a prior Normal distribution -->
+<!-- $$ -->
+<!-- \beta_{i, k} \sim \mathcal{N}(\mu_{i, k}, \sigma^2_{i, k}) -->
+<!-- $$ -->
+<!-- and $\gamma_{i,k},(1\leq i \leq p)$ follows a prior Bernoulli distribution -->
+<!-- $$ -->
+<!-- \gamma_i\sim\text{Bernoulli}(p_i) -->
+<!-- $$ -->
+<!-- The mcmc method is very similar to the above logistic model but just apply them $q-1$ times on each  -->
+
+## Ordinal regression model
+Let's then take a look at the ordinal regression model.Ordinal regression model need ordinal response variable which have q levels.The model is displayed below:
+\begin{equation}
+\frac{P(y \leq k | \theta_1, \theta_2, \ldots, \theta_{q-1})}{P(y > k | \theta_1, \theta_2, \ldots, \theta_{q-1})} = \exp(\theta_k)
+\label{eq:ord}
+\end{equation}
+
+\begin{equation}\label{ord:linear}
+\theta_k=X(\beta_k\gamma_k)
+\end{equation}
+where
+$$
+X = \begin{bmatrix}
+    1 & x_{1,1} & x_{1,2} & \cdots & x_{1,p} \\
+    1 & x_{2,1} & x_{2,2} & \cdots & x_{2,p} \\
+    \vdots & \vdots & \vdots & \ddots & \vdots \\
+    1 & x_{n,1} & x_{n,2} & \cdots & x_{n,p}
+\end{bmatrix}
+$$
+$$
+\beta_k\gamma_k = \begin{bmatrix}
+\beta_{0,k} \\
+    -\beta_{1}\gamma_{1} \\
+    -\beta_{2}\gamma_{2} \\
+    \vdots \\
+    -\beta_{p}\gamma_{p}
+  \end{bmatrix}
+$$
+In this model,although the vector $\beta_k\gamma_k$ is different , $\gamma_{i}(1\leq i \leq p)$  follows the same prior Bernoulli distribution
+$$
+\gamma_i\sim\text{Bernoulli}(p_i)
+$$
+(in the numerical case I assume all $p_i=0.5$ )
+and meanwhile $\beta_{i}(1\leq i \leq p)$ has a prior Normal distribution
+$$
+\beta_{i} \sim \mathcal{N}(\mu_{i}, \sigma^2_{i}) \text{ for  i=1,2...,p }
+$$
+(in the numerical case I assume all $\mu_i=0$ and all $\sigma_i=1$)
+For $\beta_{0, k}(0\leq k \leq q-1)$ ,it is a little bit complicated
+$$
+\beta_{0, 1} \sim \mathcal{N}(\mu_{0, 1}, \sigma^2_{0, 1})
+$$
+$$
+P(\beta_{0,k}|\beta_{0, k-1})=\text{Norm}(\beta_{0,k}|\beta_{0,k}>\beta_{0, k-1};\mu_{0, k},\sigma^2_{0,k})  \ \text{    for k=2,..q-1}
+$$
+(In the numerical case , I assume all $\mu_{0,k}=0$ while all $\sigma_{0,k}=20$ which is a really weak piror)
+we can view $\beta_{0,k}$ as individual independent variable first but have constrain 
+\begin{equation}
+\label{ord:con}
+\beta_{0,k}>\beta_{0, k-1}\text{for k=1,2...q-1}
+\end{equation}
+to satisfy the ordinal regression model.So the prior distribution of the model is a truncated distribution and in this case we assume it follows a truncated normal distribution.
+
+
+\begin{align*}
+P(Y,\theta,X,\beta,\gamma) &= P(Y|\theta,X,\beta,\gamma)P(\theta|X,\beta,\gamma)P(\beta)P(\gamma) \\
+&= P(Y|\theta,X,\beta,\gamma)P(\beta)P(\gamma) \\
+&\propto \prod_{i=1}^{n} P(y_i | X_i=[1,x_{i,1},x_{i,2},\ldots,x_{i,p}]; \beta)\prod_{j=1}^{p}P(\beta_j)\prod_{k=1}^{q-1}P(\beta_{0,k})
+\end{align*}
+so we can derive our log form of density function or log likelihood function given by:
+\begin{equation}
+\label{ord:log}
+\mathcal{L}(\beta, \gamma, \theta; Y, X) = \sum_{i=1}^{n} \left[P(y_i | X_i=[1, x_{i,1}, x_{i,2}, \ldots, x_{i,p}]; \beta)\right] + \sum_{j=0}^{p}log[\text{Norm}(\beta_j | 0, \sigma_j^2)] + \sum_{k=2}^{q-1}log[\text{Norm}(\beta_{0,k}|\beta_{0,k} > \beta_{0,k-1}; 0,\sigma_j^2)]
+\end{equation}
+where we make $\beta_{0,0}$ as $\beta_0$ to make the whole equation simple.
+
+The last part of $$\mathcal{L}(\beta, \gamma, \theta; Y, X) $$ which is $$\sum_{k=2}^{q-1}log[\text{Norm}(\beta_{0,k} | 0, \sigma_j^2, \beta_{0,k} > \beta_{0,k-1})]$$
+In R we can use a package called "truncnorm" in R to caculate each term in the sum.
+The updating process is a little bit different from the process in logistic regression.
+The first step and second step is mainly the same as what we do in the logistic regression model.
+However, in the ordinal regression we need to do a further step which is to update the different intercepts corresponding to the different ordinaldata.
+In this step,we need to update the $\beta_{0,k}$ one by one ,because the model has a constrain (\ref{ord:con}).So the distribution of $\beta_{0,k}$ depends on the value of $\beta_{0,k-1}$ which is also a Markvo chain.
+For the first element $\beta_{0,0}$ , it is a start point do not depend on other $\beta{0,k},\text{for }k\neq0$.Although it follows a normal distribution.we can also use truncated normal distribution to sample by setting the lower boundary to be  negative Infinite .It was sample by 
+$$
+J(\beta_{0,1}^{\ast}|\beta_{0,1}^{(s)})=Norm(\beta_{0,1}^{\ast}|\beta_{0,1}^{(s)},\sigma_{0,1}^2)=Norm(\beta_{0,1}^{\ast}|\beta_{0,1}^{\ast}>-\infty;\beta_{0,1}^{(s)},\nu\sigma_{0,1}^2)
+$$
+
+In R , input could be :"rtruncnorm(a=-Inf,b=Null,mean=beta_s,sd=sigma"
+while the other "dtruncnorm(x=,a=,b=,mean=,sd=)" may also be useful in the futher steps.And then we can sample the following $\beta{0,k}$ one by one using distribution
+$$
+J(\beta_{0,1}^{\ast}|\beta_{0,1}^{(s)})=Norm(\beta_{0,1}^{\ast}|\beta_{k,1}^{\ast}>\beta_{0,k-1}^{(s)};\beta_{0,1}^{(s)},\nu\sigma_{0,1}^2)
+$$
+
+Then it comes to check whether to accept it or not.According to the logistic regression steps and (\ref{logit:ratio}) ,since $J(\beta_{0,1}^{\ast}|\beta_{0,1}^{(s)})=J(\beta_{0,1}^{(s)}|\beta_{0,1}^{\ast})$ so the log of ratio keep similar form:
+$$
+log(r)= \mathcal{L}(\beta_{0,k}^{\ast};\beta^{(s)}_{-(0,k)}\gamma^{(s+1)},Y,X) - \mathcal{L}(\beta_{0,k}^{(s)};\beta^{\ast}_{-(0,k)},\gamma^{(s+1)},Y,X)
+$$
+
+Then we just need to run the above process for thousands of iterations.
+<!-- \begin{equation}\label{ord:ratio} -->
+<!-- \log(r) = \mathcal{L}(\alpha^{\ast}) - \mathcal{L}(\alpha^{(s)}) + \log[J(\alpha^{(s)}|\alpha^{\ast})] - \log[J(\alpha^{\ast}|\alpha^{(s)})] -->
+<!-- \end{equation} -->
+## How  numerical assumptions was set
+Some distribution parameters numerical assumption may be just a trial and maybe no more informative.To some degree, it may just control the model to make it not fit too well which may cause overfitting. Meanwhile, some parameters we usually call them hyper parameters are chosen under some practices to make the accepted rate look well (between 20% to 50%) eg.$\nu$
+
+# Results
+## Logsitic model on herat-diease (healthy/sick)
+The plots below display the mcmc process .The acf plot perform not well when we record every updating coefficients. After applying choosing record one in 20 updating coefficients,those plots with high poster probability in $\gamma_i$ perform really well which seems to imply a stationary process of Markov chain. The pattern may suggest the chain convergence .The $\gamma$ performance seems to suggest chest pain type,max heart rate,oldpeak,number of vessels colored and thal are important factor.When it comes to apply a Bayesian Interval of 90%, the Interval without zero suggests that resting blood pres ,slope and thal are significant factors.
+
+Furthermore, if  the model coefficients is given by mean of $\gamma\cdot\beta$.Then we compared the MCMC model with the glm model.It shows that MCMC(0.861 while glm is 0.854) got a little bit higher accuracy but in this test data are not split into training and testing sets.
+```{r include=FALSE}
+library(MASS)
+library(mvtnorm)
+# install.packages("truncnorm")
+library(truncnorm)
+```
+```{r include=FALSE}
+# trp<- 0.8
+# nd=nrow(xx)
+# ntr<-round(trp*nd)
+# nte<-nd-ntr
+# tr_ind<- sample(1:nd,ntr,replac=FALSE)
+# x_tr<-xx[tr_ind,]
+# x_te<-xx[-tr_ind,]
+
+```
+
+```{r include=FALSE}
+#predict funtion to predict value of catergory regression and ordnial regression
+my_pred<-function(x,beta_i=NULL,beta,ord=T){
+  if(ord==T){
+    x=x
+    nd=nrow(x)
+    nl=length(beta_i)
+    if(length(beta)==ncol(x)){
+      # print(matrix(beta))
+      # print(x)
+      lin<-x%*%matrix(beta)
+      Pc<-rep(1,nd)
+      for(j in nl:1){
+        Pc<-cbind(ilogit(-lin+beta_i[j]),Pc)
+      }
+      P<-t(diff(t(cbind(rep(0,nd),Pc))))
+      # print(P)
+      return(max.col(P))
+    }
+    else{
+      print("error: length(beta)!=ncol(x)")
+    }
+  }
+  else{
+    nd=nrow(x)
+    x<-cbind(rep(1,nd),x)
+    nc=ncol(x)
+    nl=nrow(beta)
+    ncc=ncol(beta)
+    if(is.null(nl)){nl=length(beta)}
+    if(nc==nl){
+      p<-ilogit(x%*%beta)
+      if(is.null(ncc)){ncc=1}
+      P<-cbind(rep(1,nd)-p%*%matrix(rep(1,ncc)),p)
+      # print(P)
+      return(max.col(P))
+    }
+    else{
+      print("check beta,x size")
+    }
+  }
+}
+```
+
+```{r include=FALSE}
+#data processiong
+d <- read.table("data.txt", header = TRUE,stringsAsFactors = TRUE)
+xx<-d
+xx$chest_pain_type<-factor(xx$chest_pain_type,levels = c('angina', 'abnang', 'notang', 'asympt'))
+xx$resting_ecg<-factor(xx$resting_ecg,levels = c('norm', 'abn', 'hyp'))
+xx$slope<-factor(xx$slope,levels=c('up', 'flat', 'down'))
+xx$thal<-factor(xx$thal,levels = c('norm', 'fix', 'rev'))
+xx$number_of_vessels_colored<-factor(xx$number_of_vessels_colored,levels=c('0.0','1.0','2.0','3.0'))
+# xx[!complete.cases(xx),]
+xx<- na.omit(xx)
+categorical_xx<-xx[,sapply(xx,is.factor)]
+numeric_xx<- xx[,sapply(xx,is.numeric)]
+std_xx<-cbind(categorical_xx,scale(numeric_xx))[,as.array(names(xx))]
+
+# xx[is.na(xx)]
+yl<-xx[,14]
+# length(y)
+x<-std_xx[,1:13]
+p<- ncol(x)
+p_y<-length(levels(yl))-1
+n<- nrow(std_xx)
+# as.numeric(xx[,14])
+
+```
+
+```{r include=FALSE}
+#glm fitted result
+x<-data.frame(lapply(x,as.numeric))
+model=glm(formula = yl ~ Age + sex + chest_pain_type + Trestbps + cholesteral + fasting_blood_sugar + resting_ecg + max_heart_rate + exercise_induced_angina + oldpeak + slope + number_of_vessels_colored + thal,data=x,family = binomial(link=logit))
+# summary(model)
+
+```
+
+```{r include=FALSE}
+ilogit<-function(theta){
+  out<-exp(theta)/(1+exp(theta))
+  return(out)
+}
+
+yl<-as.numeric(yl)-1
+# max.col(model2$fitted.values)
+# mean(max.col(model2$fitted.values)==y)
+```
+
+```{r include=FALSE}
+##logsitic regression model selection
+set.seed(100)
+x<-as.matrix(x)
+beta.pm<-rep(0,p+1)
+nuhp<-0.5
+beta.psd<-c(4,rep(2,p))*nuhp
+gamma<- rbinom(p,1,0.5)
+beta<- rep(0,p+1)#summary.coe[,1]
+beta.var<-summary(model)$cov.unscaled
+S2<- 10000*5
+Beta<-P<-NULL
+Gamma<-NULL
+nu<-0.08
+accl<- NULL
+#updating process
+for(i in 1:S2){
+    for(j in 1:(p)) {
+        new_gamma<- gamma
+        new_gamma[j]<- 1-gamma[j]
+        p0<-ilogit(x %*% (matrix(beta[-1]*gamma))+beta[1])
+        p1<-ilogit(x %*% (matrix(beta[-1]*new_gamma))+beta[1])
+        logp <- sum((dbinom(yl,1,p1,log=T)-dbinom(yl,1,p0,log=T)))
+        pj<-rbinom(1,1,ilogit(logp))
+        gamma[j]<- pj*new_gamma[j]+(1-pj)*gamma[j]
+        }
+    new_beta<- rmvnorm(1,beta,nu*beta.var)
+    # print(new_beta)
+    # print(gamma)
+    p0<-ilogit(x %*% matrix(beta[-1]*gamma)+beta[1])
+    p1<-ilogit(x %*% matrix(new_beta[-1]*gamma)+new_beta[1])
+    # print(p0)
+    # print(p1)
+    # jbeta<-dmvnorm(beta,new_beta,nu*beta.var,log=T)
+    # new_jbeta<- dmvnorm(new_beta,beta,nu*beta.var,log=T)
+    logp <- sum(dbinom(yl,1,p1,log=T)-dbinom(yl,1,p0,log=T))+sum((dnorm(new_beta,beta.pm,beta.psd,log=T)-dnorm(beta,beta.pm,beta.psd,log=T))*c(1,gamma))#-new_jbeta+jbeta
+    if(log(runif(1))<logp){
+        beta<-new_beta*c(1,gamma)+beta*c(0,1-gamma)
+        accl <- c(accl,1)
+    }
+    else{
+        accl<-c(accl,0)
+    }
+    Beta<-rbind(Beta,beta)
+    Gamma<-rbind(Gamma,gamma)
+}
+```
+
+```{r include=FALSE}
+# accepted rate
+mean(accl[5000:S2])
+apply(Gamma[5000:S2,],2,mean)
+apply(Beta[5000:S2,],2,mean)
+apply(cbind(Beta[,1],Beta[,-1]*Gamma)[5000:S2,],2,mean)
+# summary(model)
+```
+```{r include=FALSE}
+for(i in 1:13){
+ print(quantile(Beta[5000:S2,i],c(0.05,0.95) ))
+}
+
+```
+
+
+```{r echo=FALSE}
+# coefficient plot
+par(mfrow=c(2,2))
+for(i in 1:p){
+  acf(Beta[seq(1,S2,20),i], )
+    plot(Beta[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+    plot(Gamma[,i]*Beta[,i+1],ylab=bquote(gamma[.(i)]*beta[.(i)]),xlab='iteration')
+    plot(Gamma[,i],ylab=bquote(gamma[.(i)]),xlab='iteration')
+}
+y_h<-my_pred(as.matrix(x),beta=apply(cbind(Beta[,1],Beta[,-1]*Gamma)[5000:S2,],2,mean),ord=F)
+y_hh<-my_pred(as.matrix(x),beta=model$coefficients,ord=F)
+mean(y_h==as.numeric(xx[,14]))
+mean(y_hh==as.numeric(xx[,14]))
+```
+
+
+
+
+## ordinal model on herat-diease (healthy/sick1,2,3,4)
+When it comes to analyze more on sick type(S1,S2,S3,S4) which probably mean the degree of sickness.The acf plot also perform much better after select 1 generated data in 20 updating coefficients while this time less $gamma_i$ have high probabilty  equal to one.This acf may also imply the converge of Markov chains.In this model, $gamma$ seems to support on less factors, however,number of vessels colored and thal are still important factors.When we check the Bayesian Interval ,it keep the same inference as the logistic model do.
+FInally, it is also interesting to see applying MCMC model to check  agian have 0.71 accurancy higher than glm in R which is 0.65.
+```{r include=FALSE}
+# ordinal part
+
+d <- read.table("data.txt", header = TRUE,stringsAsFactors = TRUE)
+xx<-d
+xx$chest_pain_type<-factor(xx$chest_pain_type,levels = c('angina', 'abnang', 'notang', 'asympt'))
+xx$resting_ecg<-factor(xx$resting_ecg,levels = c('norm', 'abn', 'hyp'))
+xx$slope<-factor(xx$slope,levels=c('up', 'flat', 'down'))
+xx$thal<-factor(xx$thal,levels = c('norm', 'fix', 'rev'))
+xx$number_of_vessels_colored<-factor(xx$number_of_vessels_colored,levels=c('0.0','1.0','2.0','3.0'))
+# xx[!complete.cases(xx),]
+# xx[,]
+xx<- na.omit(xx)
+categorical_xx<-xx[,sapply(xx,is.factor)]
+numeric_xx<- xx[,sapply(xx,is.numeric)]
+std_xx<-cbind(categorical_xx,scale(numeric_xx))[,as.array(names(xx))]
+# xx[is.na(xx)]
+y<-xx[,15]
+x<-std_xx[,1:13]
+p<- ncol(x)
+p_y<-length(levels(y))-1
+n<- nrow(std_xx)
+
+```
+
+
+
+
+
+```{r include=FALSE}
+x<-data.frame(lapply(x,as.numeric))
+model1=polr(formula = y ~ Age + sex + chest_pain_type + Trestbps + cholesteral + fasting_blood_sugar + resting_ecg + max_heart_rate + exercise_induced_angina + oldpeak + slope + number_of_vessels_colored + thal, data=xx, method='logistic')
+model2=polr(formula = y ~ Age + sex + chest_pain_type + Trestbps + cholesteral + fasting_blood_sugar + resting_ecg + max_heart_rate + exercise_induced_angina + oldpeak + slope + number_of_vessels_colored + thal,data=x,method='logistic')
+beta.var<-cov(x)
+# summary(model1)
+# summary(model2)
+```
+
+
+
+```{r include=FALSE}
+y<- as.numeric(y)
+set.seed(102)
+S<- 1000*50
+nuhp<-5
+beta.pm<-rep(0,p)
+beta.psd<- nuhp*rep(2,p)
+gamma<- rbinom(p,1,0.5)
+beta<- mvrnorm(1,beta.pm,beta.var)
+beta_int.pm<- rep(0,p_y)
+beta_int.psd<-nuhp*rep(4,p_y)
+beta_int<- rnorm(1,0,4)
+# print(beta_int)
+for(i in 2:p_y){beta_int<- c(beta_int,rtruncnorm(1,a=beta_int[i-1],mean=0,sd=4))}
+new_beta_int<- beta_int
+Beta<- P<-NULL
+Beta_int<- NULL
+Gamma<-NULL
+nu<-0.01
+nue<-5
+acc<- acc_i<- NULL
+x<-as.matrix(x)
+for(i in 1:S){
+    for(j in 1:p) {
+        new_gamma<- gamma
+        new_gamma[j]<- 1-gamma[j]
+        pp0<-x %*% matrix(-beta*gamma)
+        pp1<-x %*% matrix(-beta*new_gamma)
+        p0 <- p1<- matrix(0,nrow=n)
+        for(i in 1:p_y){
+            ys<-ifelse(y<i,1,0)
+            yb<-1-ys
+            p0<- p0*(ys-yb)+ilogit(pp0+beta_int[i])*yb
+            p1<- p1*(ys-yb)+ilogit(pp1+beta_int[i])*yb
+        }
+        ys<-ifelse(y==5,1,0)
+        p0<-(1-p0)*ys+p0*(1-ys)
+        p1<- (1-p1)*ys+p1*(1-ys)
+        # print(cbind(p0,p1)[index])
+        logp <- sum(log(p1)-log(p0))
+        # print(logp)
+        pj<-rbinom(1,1,ilogit(logp))
+        gamma[j]<- pj*new_gamma[j]+(1-pj)*gamma[j]
+        }
+    new_beta<- rmvnorm(1,beta,nu*beta.var)
+    
+    pp0<-x %*% matrix(-beta*gamma)
+    pp1<-x %*% matrix(-new_beta*gamma)
+    p0<- p1<- matrix(0,nrow=n)
+    for(i in 1:p_y){
+        ys<-ifelse(y<i,1,0)
+        yb<-1-ys
+        p0<- p0*(ys-yb)+ilogit(pp0+beta_int[i])*yb
+        p1<- p1*(ys-yb)+ilogit(pp1+beta_int[i])*yb
+    }
+    ys<-ifelse(y==5,1,0)
+    p0<-(1-p0)*ys+p0*(1-ys)
+    p1<- (1-p1)*ys+p1*(1-ys)
+    # print(p1)
+    logp <- sum(log(p1)-log(p0))+sum((dnorm(new_beta,beta.pm,beta.psd,log=T)-dnorm(beta,beta.pm,beta.psd,log=T))*gamma)
+    # logp <- sum(dbinom(y,1,p1,log=T)-dbinom(y,1,p0,log=T))+sum((dnorm(new_beta,beta.pm,beta.psd,log=T)-dnorm(beta,beta.pm,beta.psd,log=T))*c(1,gamma))#-new_jbeta+jbeta
+    if(log(runif(1)) < logp){
+        beta<-new_beta*(gamma)+beta*(1-gamma)
+        acc <- c(acc,1)
+    }
+    else{
+        acc<-c(acc,0)
+    }
+    a0<- -Inf
+    b0<- c(beta_int[-1],Inf)
+    for(i in 1:p_y){
+        # print(paste('a0:',a0))
+        # print(b0[i])
+        new_beta_int[i]<- rtruncnorm(1,a=a0,b=b0[i],mean=beta_int[i],sd=nue*4)
+        # print(new_beta_int)
+        # print(beta_int)
+        pp0<-x %*% matrix(-beta*gamma)
+        pp1<-x %*% matrix(-beta*gamma)
+        p0<- p1<- matrix(0,nrow=n)
+        for(j in 1:p_y){
+            ys<-ifelse(y<j,1,0)
+            yb<-1-ys
+            p0<- p0*(ys-yb)+ilogit(pp0+beta_int[j])*yb
+            p1<- p1*(ys-yb)+ilogit(pp1+new_beta_int[j])*yb
+        }
+        ys<-ifelse(y==5,1,0)
+        p0<-(1-p0)*ys+p0*(1-ys)
+        p1<- (1-p1)*ys+p1*(1-ys)
+        # print(p1)
+        logp <- sum(log(p1)-log(p0))+sum(log(dtruncnorm(x=new_beta_int,a=c(-Inf,c(new_beta_int[-p_y])),mean=beta_int.pm,sd=beta.psd))-log(dtruncnorm(x=beta_int,a=c(-Inf,c(beta_int[-p_y])),mean=beta_int.pm,sd=beta.psd)))
+        # print(logp)
+        if(log(runif(1))<logp){
+            beta_int[i]<- new_beta_int[i]
+            acc_i <- c(acc_i,1)
+        }
+        else{
+            new_beta_int[i] <- beta_int[i]
+            acc_i<-c(acc_i,0)
+        }
+        a0<- beta_int[i]
+    }
+    
+    Beta<-rbind(Beta,beta)
+    Gamma<-rbind(Gamma,gamma)
+    Beta_int<-rbind(Beta_int,beta_int)
+}
+print(beta_int)
+mean(acc)
+mean(acc_i)
+apply(Gamma,2,mean)
+
+# par(bg='white',mfrow=c(3,1))
+# for(i in 1:p_y){
+#     plot(Beta_int[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+
+# }
+# for(i in 1:p){
+#     plot(Beta[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+#     plot(Gamma[,i]*Beta[,i],ylab=bquote(gamma[.(i)]*beta[.(i)]),xlab='iteration')
+#     plot(Gamma[,i],ylab=bquote(gamma[.(i)]),xlab='iteration')
+# }
+
+```
+
+```{r include=FALSE}
+apply(Gamma[5000:S,],2,mean)
+apply(Beta_int[5000:S,],2,mean)
+apply(Beta[5000:S,],2,mean)
+apply(Beta[5000:S,]*Gamma[5000:S,],2,mean)
+```
+```{r include=FALSE}
+for(i in 1:13){
+ print(quantile(Beta[5000:S,i],c(0.05,0.95) ))
+}
+
+```
+
+```{r include=FALSE}
+# length(apply(Beta*Gamma,2,mean))
+y_odh<-my_pred(as.matrix(x),apply(Beta_int[5000:S2,],2,mean),apply(Beta[5000:S2,]*Gamma[5000:S,],2,mean))
+y_od<-my_pred(as.matrix(x),model2$zeta,model2$coefficients)
+mean(y_od==as.numeric(xx[,14]))
+mean(y_odh==as.numeric(xx[,14]))
+```
+
+
+```{r echo=FALSE}
+par(bg='white',mfrow=c(2,2))
+for(i in 1:p_y){
+    acf(Beta_int[seq(1,S,20),i], )
+    plot(Beta_int[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+}
+par(mfrow=c(2,2))
+for(i in 1:p){
+  acf(Beta[seq(1,S,20),i], )
+    plot(Beta[,i],type='l',ylab=bquote(beta[.(i)]),xlab='iteration')
+    plot(Gamma[,i]*Beta[,i],ylab=bquote(gamma[.(i)]*beta[.(i)]),xlab='iteration')
+    plot(Gamma[,i],ylab=bquote(gamma[.(i)]),xlab='iteration')
+}
+```
+
+# Conclusion 
+
+The MCMC method performs well on both models to a certain extent, although it might require more time for training with larger datasets. MCMC provides a direct and straightforward approach to analyzing data, identifying important factors, and fitting models. In this case of heart disease, we obtained the same important factors from both models: the number of vessels colored and thal. Additionally, we identified three significant factors: resting blood pressure, slope, and thal. This suggests that thal likely plays a pivotal role in assessing one's heart health condition.
+
+Beides, we can derive our models after training by simply taking the mean of the coefficients after the burn-in phase.  It seems to give better results compared to the glm  may be attributed to some random effects. It's worth exploring if the model's performance can be enhanced by adjusting parameters, such as using different seeds.
+
+There are still many areas for further extension and discussion. I'm interested in testing the performance of various models, including multi-categorical regression models. Additionally, adding more attributes to the dataset to test on a larger scale model might give a better model.
+
+It's important to note that the ordinal model took longer to train due to the larger number of coefficients.
+
+Lastly, it's essential to consider computational techniques carefully when writing MCMC code to prevent computation errors, especially when working with vectorized operations.
+
+

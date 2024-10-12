@@ -1,0 +1,8 @@
+booster[0]
+0:[f12<2911.1001] yes=1,no=2,missing=1,gain=74.3229218,cover=20.75
+	1:leaf=-0.540000021,cover=9
+	2:leaf=0.552941203,cover=11.75
+booster[1]
+0:[f12<2911.1001] yes=1,no=2,missing=1,gain=42.7514801,cover=19.2702541
+	1:leaf=-0.424173951,cover=8.37451839
+	2:leaf=0.432850033,cover=10.8957367
